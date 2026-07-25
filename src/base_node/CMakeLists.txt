@@ -14,6 +14,8 @@ find_package(rclcpp REQUIRED)
 # This is now a fully compiled SHARED library
 add_library(${PROJECT_NAME} SHARED 
   src/mutex.cpp
+  src/ipc_socket.cpp
+  src/shm_ring_buffer.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC

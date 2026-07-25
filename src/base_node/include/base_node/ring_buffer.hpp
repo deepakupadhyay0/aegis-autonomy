@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
+#include "base_node/buffer_base.hpp"
 
 namespace base_node
 {
@@ -13,10 +14,10 @@ namespace topic
 /// @brief A highly optimized O(1) single-threaded ring buffer.
 /// Not thread-safe (use concurrent_ring_buffer_c for callbacks).
 template<typename T>
-class ring_buffer_c
+class ring_buffer_c : public buffer_base_c<T>
 {
 public:
-  using size_type = std::size_t;
+  using size_type = typename buffer_base_c<T>::size_type;
 
   explicit ring_buffer_c(size_type const max_size)
   : m_max_size(max_size > 0 ? max_size + 1 : 1),
@@ -28,23 +29,30 @@ public:
 
   ring_buffer_c() : ring_buffer_c(0) {}
 
-  void clear() noexcept
+  ~ring_buffer_c() override = default;
+
+  void clear() noexcept override
   {
     m_head = 0;
     m_tail = 0;
   }
 
-  bool empty() const noexcept
+  bool empty() const noexcept override
   {
     return m_head == m_tail;
   }
 
-  size_type capacity() const noexcept
+  size_type size() const noexcept override
+  {
+    return (m_tail + m_max_size - m_head) % m_max_size;
+  }
+
+  size_type capacity() const noexcept override
   {
     return m_max_size - 1;
   }
 
-  bool push_back(const T& value)
+  bool push_back(const T& value) override
   {
     const size_type next_tail = (m_tail + 1) % m_max_size;
     if (next_tail == m_head) {
@@ -55,7 +63,7 @@ public:
     return true;
   }
 
-  std::optional<T> pop_front()
+  std::optional<T> pop_front() override
   {
     if (m_head == m_tail) {
       return std::nullopt; 

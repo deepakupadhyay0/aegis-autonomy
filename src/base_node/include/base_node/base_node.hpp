@@ -24,8 +24,7 @@ public:
   {
   }
 
-  // Delete copy/move constructors and assignment operators to ensure MISRA compliance 
-  // (Prevents accidental slicing or copying of Node resources)
+  // Delete copy/move constructors and assignment operators (Prevents accidental slicing or copying of Node resources)
   base_node_c(const base_node_c &) = delete;
   base_node_c & operator=(const base_node_c &) = delete;
   base_node_c(base_node_c &&) = delete;

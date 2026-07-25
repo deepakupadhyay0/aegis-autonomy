@@ -1,20 +1,20 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
-#include <condition_variable>
 #include <chrono>
 #include <string>
+#include <atomic>
+#include <optional>
 
 #include "rclcpp/rclcpp.hpp"
-#include "base_node/ring_buffer.hpp"
+#include "base_node/concurrent_ring_buffer.hpp"
 
 namespace base_node
 {
 namespace topic
 {
 
-/// @brief A thread-safe ROS 2 subscriber wrapper that queues incoming messages into a ring buffer.
+/// @brief A thread-safe ROS 2 subscriber wrapper that queues incoming messages into a concurrent ring buffer.
 /// Allows a main execution loop to block and pop messages deterministically.
 template<typename MessageT>
 class waiting_subscriber_c
@@ -27,7 +27,8 @@ public:
     const std::string & topic_name,
     const rclcpp::QoS & qos,
     size_t queue_size = 10U)
-  : m_buffer(queue_size)
+  : m_buffer(queue_size),
+    m_running(true)
   {
     m_subscriber = node->create_subscription<MessageT>(
       topic_name,
@@ -41,22 +42,25 @@ public:
   waiting_subscriber_c(waiting_subscriber_c &&) = delete;
   waiting_subscriber_c & operator=(waiting_subscriber_c &&) = delete;
 
-  ~waiting_subscriber_c() = default;
+  ~waiting_subscriber_c()
+  {
+    m_running.store(false);
+    m_buffer.shutdown();
+  }
 
   void wait_and_pop(MessageT & msg)
   {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    m_cv.wait(lock, [this]() { return !m_buffer.empty(); });
-    msg = m_buffer.front();
-    m_buffer.pop_front();
+    auto opt_val = m_buffer.wait_and_pop_front(m_running);
+    if (opt_val.has_value()) {
+      msg = *opt_val;
+    }
   }
 
   bool wait_and_pop_timeout(MessageT & msg, std::chrono::milliseconds timeout)
   {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    if (m_cv.wait_for(lock, timeout, [this]() { return !m_buffer.empty(); })) {
-      msg = m_buffer.front();
-      m_buffer.pop_front();
+    auto opt_val = m_buffer.wait_and_pop_front_timeout(timeout, m_running);
+    if (opt_val.has_value()) {
+      msg = *opt_val;
       return true;
     }
     return false;
@@ -64,27 +68,27 @@ public:
 
   size_t size() const
   {
-    std::lock_guard<std::mutex> lock(m_mutex);
     return m_buffer.size();
+  }
+
+  bool empty() const
+  {
+    return m_buffer.empty();
   }
 
   void clear()
   {
-    std::lock_guard<std::mutex> lock(m_mutex);
     m_buffer.clear();
   }
 
 private:
   void callback(const std::shared_ptr<MessageT> msg)
   {
-    std::lock_guard<std::mutex> lock(m_mutex);
     m_buffer.push_back(*msg);
-    m_cv.notify_one();
   }
 
-  ring_buffer_c<MessageT> m_buffer;
-  mutable std::mutex m_mutex;
-  std::condition_variable m_cv;
+  concurrent_ring_buffer_c<MessageT> m_buffer;
+  std::atomic<bool> m_running;
   typename rclcpp::Subscription<MessageT>::SharedPtr m_subscriber;
 };
 

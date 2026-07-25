@@ -23,7 +23,6 @@ public:
   mutex_c();
   ~mutex_c() noexcept;
 
-  // Delete copy/move semantics to prevent accidental copying of a lock
   mutex_c(const mutex_c&) = delete;
   mutex_c& operator=(const mutex_c&) = delete;
   mutex_c(mutex_c&&) = delete;
@@ -35,10 +34,7 @@ public:
 
   core_ret_e timedlock_ms(int64_t const timeout_ms);
 
-  // std::lock_guard compatibility
   void lock();
-
-  // std::lock_guard compatibility
   void unlock();
 
 private:

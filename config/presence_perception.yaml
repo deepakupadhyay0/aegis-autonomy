@@ -1,5 +1,5 @@
 session_name: presence_detection
-start_directory: .
+start_directory: ${PWD}
 shell_command_before:
   - source /opt/ros/jazzy/setup.bash
   - source .colcon_cache/install/setup.bash
