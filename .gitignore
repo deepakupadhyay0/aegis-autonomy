@@ -1,0 +1,15 @@
+# ROS 2 Colcon Cache
+.colcon_cache/
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.agv_venv
+
+
+# AI Models (Dynamically downloaded by CMake)
+src/presence_detection/models/

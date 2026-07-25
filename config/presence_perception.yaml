@@ -1,0 +1,13 @@
+session_name: presence_detection
+start_directory: .
+shell_command_before:
+  - source /opt/ros/jazzy/setup.bash
+  - source .colcon_cache/install/setup.bash
+  - alias kill-session="tmux kill-session"
+windows:
+  - window_name: nodes
+    layout: even-horizontal
+    panes:
+      - ros2 run presence_detection camera_node_exe
+      - sleep 3 && ros2 run presence_detection perception_node_exe
+      - sleep 5 && ros2 run rqt_image_view rqt_image_view

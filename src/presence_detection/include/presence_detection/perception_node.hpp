@@ -1,0 +1,53 @@
+#pragma once
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/image.hpp"
+#include "std_msgs/msg/bool.hpp"
+#include <opencv2/opencv.hpp>
+#include <thread>
+#include <atomic>
+#include "base_node/concurrent_ring_buffer.hpp"
+
+#include "base_node/base_node.hpp"
+#include "base_node/waitset.hpp"
+#include "presence_detection/visibility_control.hpp"
+#include <onnxruntime_cxx_api.h>
+
+namespace presence_detection
+{
+
+/// @brief Deterministic perception node utilizing the 3-step lifecycle and waitset_c
+class PRESENCE_DETECTION_PUBLIC perception_node_c : public base_node::base_node_c
+{
+public:
+  explicit perception_node_c(const std::vector<std::string> & args = {});
+  ~perception_node_c() override;
+
+  void step1_allocate_resources(const std::vector<std::string> & args) override;
+  void step2_start_threads(const std::vector<std::string> & args) override;
+  void step3_run_forever(const std::vector<std::string> & args) override;
+
+private:
+  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_sub;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr m_presence_pub;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_debug_image_pub;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_depth_image_pub;
+  
+  cv::Ptr<cv::FaceDetectorYN> m_face_detector;
+
+  // ONNX Runtime objects
+  std::unique_ptr<Ort::Env> m_ort_env;
+  std::unique_ptr<Ort::Session> m_ort_session;
+  std::unique_ptr<Ort::MemoryInfo> m_memory_info;
+
+  void ai_thread_loop();
+  
+  std::thread m_ai_thread;
+  std::atomic<bool> m_running;
+  std::unique_ptr<base_node::topic::concurrent_ring_buffer_c<cv::Mat>> m_frame_queue;
+};
+
+}  // namespace presence_detection

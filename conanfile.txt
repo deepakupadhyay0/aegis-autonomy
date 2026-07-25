@@ -1,0 +1,12 @@
+[requires]
+onnxruntime/1.18.1
+
+[options]
+onnxruntime/*:with_cuda=True
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout

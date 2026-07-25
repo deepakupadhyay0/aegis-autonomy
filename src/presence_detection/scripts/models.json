@@ -1,0 +1,17 @@
+[
+  {
+    "name": "face_detection_yunet",
+    "source": "github",
+    "repo": "opencv/opencv_zoo",
+    "locked_commit": "f7c288143430c04422f8425f6f2186b6c4adaa9f",
+    "file_path": "models/face_detection_yunet/face_detection_yunet_2022mar.onnx",
+    "version_tag": "2022mar"
+  },
+  {
+    "name": "depth_anything_v2",
+    "source": "huggingface",
+    "repo_type": "model",
+    "repo": "onnx-community/depth-anything-v2-small",
+    "file_path": "onnx/model.onnx"
+  }
+]
