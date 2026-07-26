@@ -1,4 +1,5 @@
 #include "presence_detection/camera_node.hpp"
+#include <autonomy_config/autonomy_settings.hpp>
 #include <cstring>
 
 namespace presence_detection
@@ -23,18 +24,22 @@ camera_node_c::~camera_node_c()
 void camera_node_c::step1_allocate_resources(const std::vector<std::string> & args)
 {
   (void)args;
+  auto const config = autonomy_config::AutonomySettings::get_run_time_values();
   m_pub = this->create_publisher<sensor_msgs::msg::Image>("camera/image_raw", 10);
 
-  // Initialize OpenCV VideoCapture (Defaulting to /dev/video0)
-  m_cap.open(0);
+  // Initialize OpenCV VideoCapture using TOML config
+  m_cap.open(static_cast<int>(config.get_camera().get_device_id()));
   if (!m_cap.isOpened()) {
-    throw std::runtime_error("Failed to open OpenCV VideoCapture on device 0");
+    throw std::runtime_error("Failed to open OpenCV VideoCapture on configured device ID");
   }
   m_cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
+  m_cap.set(cv::CAP_PROP_FRAME_WIDTH, config.get_camera().get_image_width());
+  m_cap.set(cv::CAP_PROP_FRAME_HEIGHT, config.get_camera().get_image_height());
+  m_cap.set(cv::CAP_PROP_FPS, config.get_camera().get_fps());
 
-  // Initialize SHM ring buffer (3 slots of 1920x1080x3 BGR8 bytes)
+  // Initialize SHM ring buffer using TOML resolution
   const uint32_t num_slots = 3U;
-  const size_t slot_size = 1920U * 1080U * 3U;
+  const size_t slot_size = static_cast<size_t>(config.get_camera().get_image_width()) * static_cast<size_t>(config.get_camera().get_image_height()) * 3U;
   m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>(num_slots, slot_size);
   if (m_shm_buf->create_anonymous_shm() != core_ret_e::ok) {
     RCLCPP_WARN(this->get_logger(), "Failed to create anonymous SHM buffer for IPC.");

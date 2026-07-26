@@ -5,7 +5,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
-#include "std_msgs/msg/bool.hpp"
+#include "autonomy_msgs/msg/presence_event.hpp"
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <atomic>
@@ -32,7 +32,7 @@ public:
 
 private:
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_sub;
-  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr m_presence_pub;
+  rclcpp::Publisher<autonomy_msgs::msg::PresenceEvent>::SharedPtr m_presence_pub;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_debug_image_pub;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_depth_image_pub;
   

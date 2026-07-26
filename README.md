@@ -1,6 +1,6 @@
-# AGV ROS 2 Jazzy Workspace
+# Aegis Autonomy (AGV ROS 2 Workspace)
 
-This repository contains the deterministic, C++17 real-time perception and navigation stack for the AGV.
+This repository contains the deterministic, C++20 real-time presence detection and AI perception stack for autonomous robotics, featuring zero-copy shared memory IPC and lock-free thread-safe buffers.
 
 ## 1. Environment Setup (Distrobox)
 
@@ -17,13 +17,23 @@ distrobox enter agv_jazzy
 
 Once inside the container, you must install the core system dependencies (like Ninja, Python Virtual Environments, OpenCV data, and CUDA libraries).
 
-Run the automated setup script from the root of the workspace:
+Run the automated setup script from the root of the workspace to configure system dependencies, fetch the NVIDIA Container Toolkit GPG key, and install CUDA libraries:
 
 ```bash
 bash setup_distrobox.sh
 ```
 
-This will automatically configure system dependencies, fetch the NVIDIA Container Toolkit GPG key, and prevent `apt` signature errors.
+Next, initialize the local Python virtual environment and download all Conan C++ dependencies (TOML++, Eigen):
+
+```bash
+make init
+```
+
+> [!NOTE]
+> Whenever you modify [conanfile.txt](file:///home/cadmus/ros2_ws/robot_autonomy/conanfile.txt) (e.g., adding a new C++ library or changing versions), you do not need to rerun `make init`. Simply run:
+> ```bash
+> make conan_deps
+> ```
 
 ## 3. Downloading AI Models & Building the Workspace
 
@@ -33,10 +43,20 @@ The repository is equipped with a highly optimized wrapper `Makefile` that autom
 
 As a bonus, the perception module will automatically fetch its own AI weights from HuggingFace and GitHub seamlessly during the build process!
 
-Simply run:
+Simply run (defaults to `Debug` build type):
 
 ```bash
 make
+```
+
+You can also specify a release build type:
+```bash
+make BUILD_TYPE=Release
+```
+
+To run workspace unit tests, run:
+```bash
+make test
 ```
 
 To clean the build artifacts, run:
@@ -44,7 +64,7 @@ To clean the build artifacts, run:
 make clean
 ```
 
-## 5. Executing the Perception Stack
+## 4. Executing the Perception Stack
 
 The project includes a robust `tmuxp` configuration that will automatically manage the ROS 2 environment, spawn the camera publisher, boot the AI perception node, and launch the `rqt_image_view` GUI in a 3-pane split screen.
 
@@ -54,7 +74,7 @@ Launch the full stack with:
 tmuxp load config/presence_perception.yaml
 ```
 
-## 6. Pro-Tip: Automated Terminal Sourcing
+## 5. Pro-Tip: Automated Terminal Sourcing
 
 Since Distrobox shares your host system's home directory, you can add this "smart" script to your host's `~/.bashrc` (or `~/.bash_aliases`). 
 

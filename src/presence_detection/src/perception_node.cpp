@@ -1,4 +1,5 @@
 #include "presence_detection/perception_node.hpp"
+#include <autonomy_config/autonomy_settings.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <iostream>
@@ -30,18 +31,22 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
 {
   (void)args;
   
-  m_presence_pub = this->create_publisher<std_msgs::msg::Bool>("presence_detected", 10);
+  m_presence_pub = this->create_publisher<autonomy_msgs::msg::PresenceEvent>("presence_detected", 10);
   m_debug_image_pub = this->create_publisher<sensor_msgs::msg::Image>("camera/image_debug", 10);
   m_depth_image_pub = this->create_publisher<sensor_msgs::msg::Image>("camera/depth_debug", 10);
   
   m_image_sub = this->create_subscription<sensor_msgs::msg::Image>(
     "camera/image_raw", 10, [](const sensor_msgs::msg::Image::SharedPtr){});
 
+  auto const config = autonomy_config::AutonomySettings::get_run_time_values();
   std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("presence_detection");
   std::string yunet_model_path = pkg_share_dir + "/models/face_detection_yunet.onnx";
   try {
-    m_face_detector = cv::FaceDetectorYN::create(yunet_model_path, "", cv::Size(320, 320), 0.9f, 0.3f, 5000);
-    RCLCPP_INFO(this->get_logger(), "YuNet Face Detector loaded successfully!");
+    m_face_detector = cv::FaceDetectorYN::create(
+      yunet_model_path, "", cv::Size(320, 320),
+      static_cast<float>(config.get_perception().get_confidence_threshold()),
+      static_cast<float>(config.get_perception().get_nms_threshold()), 5000);
+    RCLCPP_INFO(this->get_logger(), "YuNet Face Detector loaded successfully with TOML config!");
   } catch (const std::exception& e) {
     RCLCPP_ERROR(this->get_logger(), "Failed to load YuNet: %s", e.what());
   }
@@ -53,7 +58,8 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
     base_node::ipc::ipc_message_t handshake = {};
     int32_t shm_fd = -1;
     if (m_client_sock.receive_message(handshake, &shm_fd) == core_ret_e::ok && shm_fd >= 0) {
-      m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>(3, 1920 * 1080 * 3);
+      const size_t slot_size = static_cast<size_t>(config.get_camera().get_image_width()) * static_cast<size_t>(config.get_camera().get_image_height()) * 3U;
+      m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>(3, slot_size);
       if (m_shm_buf->attach_from_fd(shm_fd) == core_ret_e::ok) {
         m_using_ipc = true;
         RCLCPP_INFO(this->get_logger(), "Successfully attached to zero-copy SHM ring buffer over IPC!");
@@ -73,8 +79,9 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
   Ort::SessionOptions session_options;
   const uint32_t hw_cores = std::thread::hardware_concurrency();
   const int32_t optimal_threads = static_cast<int32_t>(std::max(1U, hw_cores / 4U));
+  cv::setNumThreads(optimal_threads);
   session_options.SetIntraOpNumThreads(optimal_threads);
-  RCLCPP_INFO(this->get_logger(), "ONNX Runtime configured dynamically with %d intra-op threads (HW Concurrency: %u)", optimal_threads, hw_cores);
+  RCLCPP_INFO(this->get_logger(), "OpenCV / YuNet and ONNX Runtime configured dynamically with %d CPU threads (HW Concurrency / 4: %u)", optimal_threads, hw_cores);
   session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
   // Enable CUDA if available, otherwise fallback to CPU
@@ -154,10 +161,10 @@ void perception_node_c::ai_thread_loop()
   RCLCPP_INFO(this->get_logger(), "Background AI Thread started! Running ONNX Inference asynchronously.");
 
   // Depth Anything V2 input dimensions
-  const int32_t input_w = 512; // Downscaled via binning
-  const int32_t input_h = 512;
-  const size_t input_tensor_size = 1U * 3U * static_cast<size_t>(input_h) * static_cast<size_t>(input_w);
-  std::vector<int64_t> input_node_dims = {1, 3, input_h, input_w};
+  const int32_t depth_input_w = 512; // Downscaled via binning
+  const int32_t depth_input_h = 512;
+  const size_t input_tensor_size = 1U * 3U * static_cast<size_t>(depth_input_h) * static_cast<size_t>(depth_input_w);
+  std::vector<int64_t> input_node_dims = {1, 3, depth_input_h, depth_input_w};
 
   auto last_frame_time = std::chrono::high_resolution_clock::now();
   float64_t smoothed_fps = 0.0;
@@ -190,8 +197,18 @@ void perception_node_c::ai_thread_loop()
         }
 
         const bool8_t presence = (faces.rows > 0);
-        std::unique_ptr<std_msgs::msg::Bool> msg_presence = std::make_unique<std_msgs::msg::Bool>();
-        msg_presence->data = presence;
+        float max_conf = 0.0f;
+        if (presence) {
+          for (int i = 0; i < faces.rows; ++i) {
+            float conf = faces.at<float>(i, 14);
+            if (conf > max_conf) max_conf = conf;
+          }
+        }
+        auto msg_presence = std::make_unique<autonomy_msgs::msg::PresenceEvent>();
+        msg_presence->header.stamp = this->now();
+        msg_presence->header.frame_id = "camera_frame";
+        msg_presence->presence_detected = presence;
+        msg_presence->confidence = max_conf;
         m_presence_pub->publish(std::move(msg_presence));
 
         // 2. Prepare ONNX Input conditionally (only if model is loaded AND presence is detected)
@@ -199,22 +216,21 @@ void perception_node_c::ai_thread_loop()
         cv::Mat depth_map_raw;
         if (presence && m_ort_session) {
           cv::Mat resized_img;
-          cv::resize(frame, resized_img, cv::Size(input_w, input_h), 0, 0, cv::INTER_AREA);
+          cv::resize(frame, resized_img, cv::Size(depth_input_w, depth_input_h), 0, 0, cv::INTER_AREA);
 
           cv::Mat blob = cv::dnn::blobFromImage(
             resized_img,
             1.0 / 255.0,
-            cv::Size(input_w, input_h),
+            cv::Size(depth_input_w, depth_input_h),
             cv::Scalar(0.485 * 255.0, 0.456 * 255.0, 0.406 * 255.0),
             true,
             false);
 
-          // Vectorized channel-wise division by std deviation
-          const size_t plane_size = static_cast<size_t>(input_h) * static_cast<size_t>(input_w);
+          const size_t plane_size = static_cast<size_t>(depth_input_h) * static_cast<size_t>(depth_input_w);
           float32_t* const blob_ptr = blob.ptr<float32_t>();
-          cv::Mat channel_r(input_h, input_w, CV_32F, blob_ptr);
-          cv::Mat channel_g(input_h, input_w, CV_32F, blob_ptr + plane_size);
-          cv::Mat channel_b(input_h, input_w, CV_32F, blob_ptr + (2 * plane_size));
+          cv::Mat channel_r(depth_input_h, depth_input_w, CV_32F, blob_ptr);
+          cv::Mat channel_g(depth_input_h, depth_input_w, CV_32F, blob_ptr + plane_size);
+          cv::Mat channel_b(depth_input_h, depth_input_w, CV_32F, blob_ptr + (2 * plane_size));
 
           channel_r *= (1.0f / 0.229f);
           channel_g *= (1.0f / 0.224f);
@@ -233,7 +249,7 @@ void perception_node_c::ai_thread_loop()
             Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
 
           float32_t* const floatarr = output_tensors.front().GetTensorMutableData<float>();
-          depth_map_raw = cv::Mat(input_h, input_w, CV_32F, floatarr).clone();
+          depth_map_raw = cv::Mat(depth_input_h, depth_input_w, CV_32F, floatarr).clone();
           
           // Normalize for visualization
           cv::Mat depth_map_vis;
@@ -242,14 +258,16 @@ void perception_node_c::ai_thread_loop()
           cv::resize(depth_map_colored, depth_map_colored, frame.size());
         }
 
-        // 3. Extract Eyes & Calculate Metric Depth
+        // Extract Eyes & Calculate Metric Depth
         float32_t metric_depth_meters = -1.0f;
         for (int32_t i = 0; i < faces.rows; i++) {
           const float32_t* const data = faces.ptr<float32_t>(i);
           const float32_t score = data[14];
           if (score < 0.8f) continue;
 
-          const cv::Rect face(static_cast<int32_t>(data[0]), static_cast<int32_t>(data[1]), static_cast<int32_t>(data[2]), static_cast<int32_t>(data[3]));
+          const cv::Rect face(
+            static_cast<int32_t>(data[0]), static_cast<int32_t>(data[1]),
+            static_cast<int32_t>(data[2]), static_cast<int32_t>(data[3]));
           cv::rectangle(frame, face, cv::Scalar(0, 255, 0), 2);
           
           const float32_t eye1_x = data[4];
@@ -274,19 +292,23 @@ void perception_node_c::ai_thread_loop()
           // Absolute Metric Depth Z
           metric_depth_meters = (focal_length * real_eye_dist) / pixel_dist;
 
-          // Use the raw ONNX float array to calculate the metric scaling factor
           if (m_ort_session && !depth_map_raw.empty()) {
             const float32_t face_cx = face.x + (face.width / 2.0f);
             const float32_t face_cy = face.y + (face.height / 2.0f);
-            const int32_t dx = std::max(0, std::min(static_cast<int32_t>(face_cx * (input_w / static_cast<float32_t>(frame.cols))), input_w - 1));
-            const int32_t dy = std::max(0, std::min(static_cast<int32_t>(face_cy * (input_h / static_cast<float32_t>(frame.rows))), input_h - 1));
+            const int32_t dx = std::max(
+              0, std::min(static_cast<int32_t>(face_cx * (depth_input_w / static_cast<float32_t>(frame.cols))), depth_input_w - 1));
+            const int32_t dy = std::max(
+              0, std::min(static_cast<int32_t>(face_cy * (depth_input_h / static_cast<float32_t>(frame.rows))), depth_input_h - 1));
 
             const float32_t rel_depth = depth_map_raw.at<float32_t>(dy, dx);
             const float32_t scale_factor = metric_depth_meters * rel_depth;
             
             char8_t scale_text[50];
-            snprintf(scale_text, sizeof(scale_text), "Scale: %.2f", scale_factor);
-            cv::putText(frame, scale_text, cv::Point(10, 110), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+            snprintf(reinterpret_cast<char*>(scale_text), sizeof(scale_text), "Scale: %.2f", scale_factor);
+            cv::putText(
+              frame, reinterpret_cast<char*>(scale_text),
+              cv::Point(10, 110), cv::FONT_HERSHEY_SIMPLEX, 1,
+              cv::Scalar(0, 255, 255), 2);
           }
         }
         

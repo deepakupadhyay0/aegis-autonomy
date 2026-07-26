@@ -4,12 +4,13 @@
   <name>base_node</name>
   <version>0.0.1</version>
   <description>MISRA-compliant ROS 2 base node package</description>
-  <maintainer email="cadmus@todo.todo">Cadmus</maintainer>
+  <maintainer email="8988389+deepakupadhyay0@users.noreply.github.com">Deepak Upadhyay</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   
   <depend>rclcpp</depend>
+  <depend>autonomy_config</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

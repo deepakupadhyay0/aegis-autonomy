@@ -1,8 +1,6 @@
 [requires]
-onnxruntime/1.18.1
-
-[options]
-onnxruntime/*:with_cuda=True
+tomlplusplus/3.4.0
+eigen/5.0.1
 
 [generators]
 CMakeDeps

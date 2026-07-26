@@ -7,7 +7,6 @@ log/
 # Python
 __pycache__/
 *.pyc
-.venv/
 .agv_venv
 
 

@@ -1,21 +1,25 @@
 cmake_minimum_required(VERSION 3.8)
 project(base_node)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
+add_compile_options(
+  $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wall>
+  $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wextra>
+  $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wpedantic>
+)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(autonomy_config REQUIRED)
 
 # This is now a fully compiled SHARED library
 add_library(${PROJECT_NAME} SHARED 
   src/mutex.cpp
   src/ipc_socket.cpp
   src/shm_ring_buffer.cpp
+  src/config_dir.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -25,6 +29,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
   rclcpp::rclcpp
+  autonomy_config::autonomy_config
 )
 
 install(
@@ -42,6 +47,6 @@ install(
 )
 
 ament_export_targets(export_${PROJECT_NAME})
-ament_export_dependencies(rclcpp)
+ament_export_dependencies(rclcpp autonomy_config)
 
 ament_package()

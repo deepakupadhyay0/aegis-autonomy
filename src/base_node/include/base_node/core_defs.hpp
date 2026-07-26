@@ -3,6 +3,7 @@
 #include <cstdbool>
 #include <cstdint>
 #include <cmath>
+#include <string>
 
 #if defined _WIN32
   #define CORE_WINDOWS
@@ -51,7 +52,6 @@ enum class core_ret_e : int32_t {
 #define OBJ_EXISTS_INDICATOR (0x15U)
 
 using bool8_t = bool;
-using char8_t = char;
 using float32_t = float;
 using float64_t = double;
 
@@ -75,5 +75,6 @@ struct core_string8_t { char8_t c_str[8U]; };
 struct core_string16_t { char8_t c_str[16U]; };
 struct core_string32_t { char8_t c_str[32U]; };
 struct core_string64_t { char8_t c_str[64U]; };
-struct core_string128_t { char8_t c_str[128U]; };
 struct core_string256_t { char8_t c_str[CORE_STRING_SIZE]; };
+
+std::string get_toml_config_directory();
