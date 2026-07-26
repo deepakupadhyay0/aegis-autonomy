@@ -5,4 +5,4 @@ build:
 test:
   build-base: ".colcon_cache/build"
   install-base: ".colcon_cache/install"
-  log-base: ".colcon_cache/log"
+  test-result-base: ".colcon_cache/test_results"

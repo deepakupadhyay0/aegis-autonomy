@@ -66,6 +66,12 @@ install(
   INCLUDES DESTINATION include
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_config test/test_config.cpp)
+  target_link_libraries(test_config ${PROJECT_NAME})
+endif()
+
 ament_export_targets(export_${PROJECT_NAME})
 ament_export_dependencies(tomlplusplus)
 

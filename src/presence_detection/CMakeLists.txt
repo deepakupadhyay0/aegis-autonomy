@@ -113,5 +113,16 @@ install(DIRECTORY models/
   DESTINATION share/${PROJECT_NAME}/models
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_nodes test/test_nodes.cpp)
+  target_link_libraries(test_nodes camera_node perception_node)
+  ament_target_dependencies(test_nodes ${COMMON_DEPS} autonomy_config autonomy_msgs ament_index_cpp)
+  set_target_properties(test_nodes PROPERTIES
+    BUILD_RPATH "${GPU_RPATH_STR}"
+    INSTALL_RPATH "${GPU_RPATH_STR}"
+  )
+endif()
+
 ament_export_include_directories(include)
 ament_package()

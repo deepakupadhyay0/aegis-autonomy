@@ -24,4 +24,5 @@ clean:
 	rm -rf .colcon_cache build install log
 
 test:
-	colcon test
+	COLCON_DEFAULTS_FILE=colcon_defaults.yaml colcon test --event-handlers console_direct+
+	colcon test-result --all --test-result-base .colcon_cache/test_results
