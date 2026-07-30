@@ -18,8 +18,8 @@ namespace presence_detection
 
 perception_node_c::perception_node_c(
   const std::vector<std::string> & args,
-  const base_node::base_node_options_s & options)
-: base_node::ros_base_node_c(options)
+  const base_core::base_node_options_s & options)
+: base_core::ros_base_node_c(options)
 {
   (void)args;
 }
@@ -69,13 +69,13 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
     RCLCPP_ERROR(this->get_logger(), "Failed to load YuNet: %s", e.what());
   }
 
-  m_frame_queue = std::make_unique<base_node::topic::concurrent_ring_buffer_c<cv::Mat>>(2);
+  m_frame_queue = std::make_unique<base_core::topic::concurrent_ring_buffer_c<cv::Mat>>(2);
 
   if (m_client_sock.connect_to_server("@presence_detection_ipc") == core_ret_e::ok) {
     RCLCPP_INFO(this->get_logger(), "Connected to IPC Server via abstract RAM socket! Waiting for SHM fd handshake...");
     int32_t shm_fd = -1;
     if (m_client_sock.receive_handshake(shm_fd) == core_ret_e::ok) {
-      m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>();
+      m_shm_buf = std::make_unique<base_core::ipc::shm_ring_buffer_c>();
       common::ipc::stream_descriptor_s stream_descriptor;
       const bool8_t ring_attached =
         m_shm_buf->attach_from_fd(shm_fd) == core_ret_e::ok;
@@ -149,7 +149,7 @@ void perception_node_c::step3_run_forever(const std::vector<std::string> & args)
   (void)args;
   RCLCPP_INFO(this->get_logger(), "Main thread now listening for camera frames (IPC Mode: %s)...", m_using_ipc ? "ENABLED" : "FALLBACK DDS");
 
-  base_node::execution::waitset_c<sensor_msgs::msg::Image> waitset(
+  base_core::execution::waitset_c<sensor_msgs::msg::Image> waitset(
     *this,
     m_image_sub);
 

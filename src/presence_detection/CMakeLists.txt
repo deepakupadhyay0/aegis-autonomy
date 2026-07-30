@@ -26,7 +26,7 @@ endif()
 # --- Dependencies ---
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(base_node REQUIRED)
+find_package(base_core REQUIRED)
 find_package(common REQUIRED)
 find_package(autonomy_config REQUIRED)
 find_package(autonomy_msgs REQUIRED)
@@ -38,7 +38,7 @@ find_package(ament_index_cpp REQUIRED)
 
 set(COMMON_DEPS
   rclcpp
-  base_node
+  base_core
   common
   sensor_msgs
   std_msgs

@@ -9,12 +9,12 @@
 #include <opencv2/opencv.hpp>
 #include <thread>
 #include <atomic>
-#include "base_node/concurrent_ring_buffer.hpp"
+#include "base_core/concurrent_ring_buffer.hpp"
 
-#include "base_node/base_node.hpp"
-#include "base_node/execution/waitset.hpp"
-#include "base_node/ipc/ipc_socket.hpp"
-#include "base_node/ipc/shm_ring_buffer.hpp"
+#include "base_core/base_node.hpp"
+#include "base_core/execution/waitset.hpp"
+#include "base_core/ipc/ipc_socket.hpp"
+#include "base_core/ipc/shm_ring_buffer.hpp"
 #include "common/ipc/ipc_protocol.hpp"
 #include "presence_detection/visibility_control.hpp"
 #include <onnxruntime_cxx_api.h>
@@ -22,12 +22,12 @@
 namespace presence_detection
 {
 class PRESENCE_DETECTION_PUBLIC perception_node_c :
-  public base_node::ros_base_node_c
+  public base_core::ros_base_node_c
 {
 public:
   perception_node_c(
     const std::vector<std::string> & args,
-    const base_node::base_node_options_s & options);
+    const base_core::base_node_options_s & options);
   ~perception_node_c() override;
 
 protected:
@@ -53,11 +53,11 @@ private:
   
   std::thread m_ai_thread;
   std::atomic<bool> m_running;
-  std::unique_ptr<base_node::topic::concurrent_ring_buffer_c<cv::Mat>> m_frame_queue;
+  std::unique_ptr<base_core::topic::concurrent_ring_buffer_c<cv::Mat>> m_frame_queue;
 
-  std::unique_ptr<base_node::ipc::shm_ring_buffer_c> m_shm_buf;
+  std::unique_ptr<base_core::ipc::shm_ring_buffer_c> m_shm_buf;
   common::ipc::stream_descriptor_s m_stream_descriptor;
-  base_node::ipc::ipc_socket_c m_client_sock;
+  base_core::ipc::ipc_socket_c m_client_sock;
   bool m_using_ipc{false};
   uint64_t m_last_sequence{0U};
 };

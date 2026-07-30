@@ -12,8 +12,8 @@ namespace presence_detection
 
 camera_node_c::camera_node_c(
   const std::vector<std::string> & args,
-  const base_node::base_node_options_s & options)
-: base_node::ros_base_node_c(options)
+  const base_core::base_node_options_s & options)
+: base_core::ros_base_node_c(options)
 {
   (void)args; // Unused for now
 }
@@ -101,7 +101,7 @@ void camera_node_c::step1_allocate_resources(const std::vector<std::string> & ar
   std::array<std::byte, common::ipc::STREAM_DESCRIPTOR_SIZE> descriptor_buffer;
   common::ipc::serialize_stream_descriptor(m_stream_descriptor, descriptor_buffer);
 
-  m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>(
+  m_shm_buf = std::make_unique<base_core::ipc::shm_ring_buffer_c>(
     num_slots,
     slot_size);
   if (m_shm_buf->create_anonymous_shm(

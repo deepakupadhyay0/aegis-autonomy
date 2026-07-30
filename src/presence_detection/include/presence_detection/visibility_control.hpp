@@ -1,6 +1,6 @@
 #pragma once
 
-#include "base_node/core_defs.hpp"
+#include "base_core/core_defs.hpp"
 
 #if defined CORE_WINDOWS
   #ifdef PRESENCE_DETECTION_BUILDING_DLL

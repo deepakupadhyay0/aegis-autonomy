@@ -11,9 +11,9 @@
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 
-#include "base_node/base_node.hpp"
-#include "base_node/ipc/ipc_socket.hpp"
-#include "base_node/ipc/shm_ring_buffer.hpp"
+#include "base_core/base_node.hpp"
+#include "base_core/ipc/ipc_socket.hpp"
+#include "base_core/ipc/shm_ring_buffer.hpp"
 #include "common/ipc/ipc_protocol.hpp"
 #include "presence_detection/visibility_control.hpp"
 
@@ -21,12 +21,12 @@ namespace presence_detection
 {
 
 class PRESENCE_DETECTION_PUBLIC camera_node_c :
-  public base_node::ros_base_node_c
+  public base_core::ros_base_node_c
 {
 public:
   camera_node_c(
     const std::vector<std::string> & args,
-    const base_node::base_node_options_s & options);
+    const base_core::base_node_options_s & options);
   ~camera_node_c() override;
 
 protected:
@@ -40,10 +40,10 @@ private:
   cv::VideoCapture m_cap;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_pub;
 
-  std::unique_ptr<base_node::ipc::shm_ring_buffer_c> m_shm_buf;
+  std::unique_ptr<base_core::ipc::shm_ring_buffer_c> m_shm_buf;
   common::ipc::stream_descriptor_s m_stream_descriptor;
-  base_node::ipc::ipc_socket_c m_server_sock;
-  base_node::ipc::ipc_socket_c m_client_sock;
+  base_core::ipc::ipc_socket_c m_server_sock;
+  base_core::ipc::ipc_socket_c m_client_sock;
   std::thread m_accept_thread;
   std::atomic<bool> m_client_connected{false};
   std::atomic<bool> m_running{false};
