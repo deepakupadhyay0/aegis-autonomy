@@ -23,9 +23,9 @@ def get_cpp_type(val):
     if isinstance(val, bool):
         return "bool"
     elif isinstance(val, int):
-        return "int64_t"
+        return "common::int64_t"
     elif isinstance(val, float):
-        return "double"
+        return "common::float64_t"
     elif isinstance(val, str):
         return "std::string"
     elif isinstance(val, list):
@@ -73,8 +73,8 @@ def generate_hpp(root, ns, class_name, hpp_path):
         "",
         "#include <string>",
         "#include <vector>",
-        "#include <cstdint>",
         "#include <memory>",
+        '#include "common/numeric_types.hpp"',
         "",
         f"namespace {ns} {{",
         ""

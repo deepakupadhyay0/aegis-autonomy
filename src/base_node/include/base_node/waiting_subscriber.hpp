@@ -1,40 +1,51 @@
 #pragma once
 
-#include <memory>
-#include <chrono>
-#include <string>
-#include <atomic>
-#include <optional>
-
-#include "rclcpp/rclcpp.hpp"
 #include "base_node/concurrent_ring_buffer.hpp"
+#include "common/fixed_string.hpp"
+#include "rclcpp/rclcpp.hpp"
+
+#include <chrono>
+#include <cstddef>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
 
 namespace base_node
 {
 namespace topic
 {
 
-/// @brief A thread-safe ROS 2 subscriber wrapper that queues incoming messages into a concurrent ring buffer.
-/// Allows a main execution loop to block and pop messages deterministically.
-template<typename MessageT>
-class waiting_subscriber_c
+/// @brief ROS 2 subscriber with a bounded latest-message queue and blocking reads.
+template<typename message_t>
+class waiting_subscriber_c final
 {
 public:
-  using SharedPtr = std::shared_ptr<waiting_subscriber_c<MessageT>>;
+  using SharedPtr = std::shared_ptr<waiting_subscriber_c<message_t>>;
 
+  template<typename node_t>
   waiting_subscriber_c(
-    rclcpp::Node * node,
-    const std::string & topic_name,
+    node_t & node,
+    const common::string256_t & topic_name,
     const rclcpp::QoS & qos,
-    size_t queue_size = 10U)
+    const std::size_t queue_size = 10U)
   : m_buffer(queue_size),
-    m_running(true)
+    m_subscriber()
   {
-    m_subscriber = node->create_subscription<MessageT>(
-      topic_name,
+    const std::string ros_topic_name(topic_name.view());
+    m_subscriber = node.template create_subscription<message_t>(
+      ros_topic_name,
       qos,
-      std::bind(&waiting_subscriber_c::callback, this, std::placeholders::_1)
-    );
+      [this](typename message_t::UniquePtr message) {
+        if (message) {
+          m_buffer.push_back(std::move(*message));
+        }
+      });
+  }
+
+  ~waiting_subscriber_c() noexcept
+  {
+    this->shutdown();
   }
 
   waiting_subscriber_c(const waiting_subscriber_c &) = delete;
@@ -42,36 +53,23 @@ public:
   waiting_subscriber_c(waiting_subscriber_c &&) = delete;
   waiting_subscriber_c & operator=(waiting_subscriber_c &&) = delete;
 
-  ~waiting_subscriber_c()
+  std::optional<message_t> wait_and_pop()
   {
-    m_running.store(false);
-    m_buffer.shutdown();
+    return m_buffer.wait_and_pop_front();
   }
 
-  void wait_and_pop(MessageT & msg)
+  std::optional<message_t> wait_and_pop_timeout(
+    const std::chrono::milliseconds timeout)
   {
-    auto opt_val = m_buffer.wait_and_pop_front(m_running);
-    if (opt_val.has_value()) {
-      msg = *opt_val;
-    }
+    return m_buffer.wait_and_pop_front_timeout(timeout);
   }
 
-  bool wait_and_pop_timeout(MessageT & msg, std::chrono::milliseconds timeout)
-  {
-    auto opt_val = m_buffer.wait_and_pop_front_timeout(timeout, m_running);
-    if (opt_val.has_value()) {
-      msg = *opt_val;
-      return true;
-    }
-    return false;
-  }
-
-  size_t size() const
+  std::size_t size() const
   {
     return m_buffer.size();
   }
 
-  bool empty() const
+  bool8_t empty() const
   {
     return m_buffer.empty();
   }
@@ -81,15 +79,15 @@ public:
     m_buffer.clear();
   }
 
-private:
-  void callback(const std::shared_ptr<MessageT> msg)
+  void shutdown() noexcept
   {
-    m_buffer.push_back(*msg);
+    m_buffer.shutdown();
+    m_subscriber.reset();
   }
 
-  concurrent_ring_buffer_c<MessageT> m_buffer;
-  std::atomic<bool> m_running;
-  typename rclcpp::Subscription<MessageT>::SharedPtr m_subscriber;
+private:
+  concurrent_ring_buffer_c<message_t> m_buffer;
+  typename rclcpp::Subscription<message_t>::SharedPtr m_subscriber;
 };
 
 }  // namespace topic

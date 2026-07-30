@@ -2,6 +2,7 @@
 
 #include "base_node/core_defs.hpp"
 #include "base_node/visibility_control.hpp"
+#include "common/ipc/ipc_protocol.hpp"
 #include <cstdint>
 #include <cstddef>
 #include <string>
@@ -12,16 +13,6 @@ namespace base_node
 {
 namespace ipc
 {
-
-struct ipc_message_t
-{
-  uint32_t msg_id;
-  uint32_t slot_index;
-  uint32_t width;
-  uint32_t height;
-  uint32_t format; // e.g. 1 = BGR8
-  uint64_t timestamp_ns;
-};
 
 class BASE_NODE_PUBLIC ipc_socket_c
 {
@@ -42,8 +33,12 @@ public:
   core_ret_t accept_client(ipc_socket_c & client_sock) noexcept;
   core_ret_t connect_to_server(const std::string & socket_path) noexcept;
 
-  core_ret_t send_message(const ipc_message_t & msg, int32_t fd_to_send = -1) noexcept;
-  core_ret_t receive_message(ipc_message_t & msg, int32_t * received_fd = nullptr) noexcept;
+  core_ret_t send_handshake(int32_t fd_to_send) noexcept;
+  core_ret_t receive_handshake(int32_t & received_fd) noexcept;
+  core_ret_t send_frame_notification(
+    const common::ipc::frame_notification_s & notification) noexcept;
+  core_ret_t receive_frame_notification(
+    common::ipc::frame_notification_s & notification) noexcept;
 
   void close_socket() noexcept;
   bool8_t is_valid() const noexcept;

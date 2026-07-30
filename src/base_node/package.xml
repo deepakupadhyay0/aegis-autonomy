@@ -10,7 +10,11 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   
   <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>autonomy_config</depend>
+  <depend>common</depend>
+
+  <test_depend>std_msgs</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

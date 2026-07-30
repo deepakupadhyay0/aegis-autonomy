@@ -1,122 +1,113 @@
 #include "base_node/mutex.hpp"
 
+#include <cerrno>
+#include <ctime>
+#include <stdexcept>
+#include <unistd.h>
+
 namespace base_node
 {
 namespace sync
 {
 
-mutex_c::mutex_c()
-: m_lock_counter(0),
-  m_owner_tid(0)
+mutex_c::mutex_c(const priority_inheritance_e priority_inheritance)
+: m_attributes(),
+  m_mutex(),
+  m_lock_depth(0U),
+  m_attributes_initialized(false),
+  m_mutex_initialized(false)
 {
-  int32_t posix_error = pthread_mutexattr_init(&m_attr);
-  if (posix_error != 0) {
+  int32_t result = ::pthread_mutexattr_init(&m_attributes);
+  if (result != 0) {
     throw std::runtime_error("pthread_mutexattr_init failed");
   }
+  m_attributes_initialized = true;
 
+  if (priority_inheritance == priority_inheritance_e::enabled) {
 #ifdef _POSIX_THREAD_PRIO_INHERIT
-  // Attempt priority inheritance if the RTOS/kernel supports it
-  pthread_mutexattr_setprotocol(&m_attr, PTHREAD_PRIO_INHERIT);
+    result = ::pthread_mutexattr_setprotocol(&m_attributes, PTHREAD_PRIO_INHERIT);
+    if (result != 0) {
+      this->cleanup();
+      throw std::runtime_error("pthread_mutexattr_setprotocol failed");
+    }
+#else
+    this->cleanup();
+    throw std::runtime_error("Priority inheritance is unavailable");
 #endif
+  }
 
-  posix_error = pthread_mutex_init(&m_mutex, &m_attr);
-  if (posix_error != 0) {
-    pthread_mutexattr_destroy(&m_attr);
+  result = ::pthread_mutex_init(&m_mutex, &m_attributes);
+  if (result != 0) {
+    this->cleanup();
     throw std::runtime_error("pthread_mutex_init failed");
   }
+  m_mutex_initialized = true;
 }
 
 mutex_c::~mutex_c() noexcept
 {
-  if (is_locked_by_me()) {
-    unlock();
+  this->cleanup();
+}
+
+void mutex_c::cleanup() noexcept
+{
+  if (m_mutex_initialized) {
+    ::pthread_mutex_destroy(&m_mutex);
+    m_mutex_initialized = false;
   }
-  pthread_mutex_destroy(&m_mutex);
-  pthread_mutexattr_destroy(&m_attr);
-}
-
-bool mutex_c::is_locked_by_other() const
-{
-  if (m_lock_counter != 0) {
-    return pthread_equal(m_owner_tid, pthread_self()) == 0;
+  if (m_attributes_initialized) {
+    ::pthread_mutexattr_destroy(&m_attributes);
+    m_attributes_initialized = false;
   }
-  return false;
 }
 
-bool mutex_c::is_locked_by_me() const
+bool8_t mutex_c::is_locked() const noexcept
 {
-  if (m_lock_counter != 0) {
-    return pthread_equal(m_owner_tid, pthread_self()) != 0;
-  }
-  return false;
+  return m_lock_depth.load(std::memory_order_relaxed) != 0U;
 }
 
-bool mutex_c::is_locked() const
+core_ret_e mutex_c::timedlock_ms(const int64_t timeout_ms)
 {
-  return m_lock_counter != 0;
-}
-
-core_ret_e mutex_c::timedlock_ms(int64_t const timeout_ms)
-{
+  int32_t result = 0;
   if (timeout_ms < 0) {
-    // Indefinite block
-    if (is_locked_by_me()) {
-      m_lock_counter++;
-      return core_ret_e::ok;
+    result = ::pthread_mutex_lock(&m_mutex);
+  } else {
+    struct timespec end_time = {};
+    if (::clock_gettime(CLOCK_REALTIME, &end_time) != 0) {
+      return core_ret_e::error;
     }
-    
-    int32_t posix_error = pthread_mutex_lock(&m_mutex);
-    if (posix_error == 0) {
-      m_owner_tid = pthread_self();
-      m_lock_counter = 1;
-      return core_ret_e::ok;
+
+    end_time.tv_sec += static_cast<time_t>(timeout_ms / 1000);
+    end_time.tv_nsec += static_cast<long>((timeout_ms % 1000) * 1000000);
+    if (end_time.tv_nsec >= 1000000000L) {
+      end_time.tv_sec += 1;
+      end_time.tv_nsec -= 1000000000L;
     }
-    return core_ret_e::error;
+    result = ::pthread_mutex_timedlock(&m_mutex, &end_time);
   }
 
-  if (is_locked_by_me()) {
-    m_lock_counter++;
+  if (result == 0) {
+    m_lock_depth.fetch_add(1U, std::memory_order_relaxed);
     return core_ret_e::ok;
   }
-
-  struct timespec now;
-  clock_gettime(CLOCK_REALTIME, &now);
-
-  struct timespec end_time;
-  end_time.tv_sec = now.tv_sec + (timeout_ms / 1000);
-  end_time.tv_nsec = now.tv_nsec + ((timeout_ms % 1000) * 1000000);
-  
-  if (end_time.tv_nsec >= 1000000000) {
-    end_time.tv_sec += 1;
-    end_time.tv_nsec -= 1000000000;
-  }
-
-  int32_t posix_error = pthread_mutex_timedlock(&m_mutex, &end_time);
-
-  if (posix_error == 0) {
-    m_owner_tid = pthread_self();
-    m_lock_counter = 1;
-    return core_ret_e::ok;
-  } else if (posix_error == ETIMEDOUT) {
+  if (result == ETIMEDOUT) {
     return core_ret_e::timeout;
   }
-
   return core_ret_e::error;
 }
 
 void mutex_c::lock()
 {
-  timedlock_ms(-1);
+  if (this->timedlock_ms(-1) != core_ret_e::ok) {
+    throw std::runtime_error("pthread_mutex_lock failed");
+  }
 }
 
-void mutex_c::unlock()
+void mutex_c::unlock() noexcept
 {
-  if (is_locked_by_me()) {
-    m_lock_counter--;
-    if (m_lock_counter == 0) {
-      m_owner_tid = 0;
-      pthread_mutex_unlock(&m_mutex);
-    }
+  const int32_t result = ::pthread_mutex_unlock(&m_mutex);
+  if (result == 0) {
+    m_lock_depth.fetch_sub(1U, std::memory_order_relaxed);
   }
 }
 

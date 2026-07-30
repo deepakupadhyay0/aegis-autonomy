@@ -27,6 +27,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(base_node REQUIRED)
+find_package(common REQUIRED)
 find_package(autonomy_config REQUIRED)
 find_package(autonomy_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -38,6 +39,7 @@ find_package(ament_index_cpp REQUIRED)
 set(COMMON_DEPS
   rclcpp
   base_node
+  common
   sensor_msgs
   std_msgs
   cv_bridge
@@ -61,12 +63,20 @@ set_target_properties(onnxruntime::onnxruntime PROPERTIES
 )
 
 # --- Targets: camera_node ---
+add_library(camera_ipc src/camera_ipc_validation.cpp)
+target_include_directories(camera_ipc PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(camera_ipc common OpenCV)
+
 add_library(camera_node src/camera_node.cpp)
 target_include_directories(camera_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(camera_node ${COMMON_DEPS} autonomy_config)
+target_link_libraries(camera_node camera_ipc)
 
 add_executable(camera_node_exe src/camera_node_exe.cpp)
 target_link_libraries(camera_node_exe camera_node)
@@ -79,6 +89,7 @@ target_include_directories(perception_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(perception_node onnxruntime::onnxruntime)
+target_link_libraries(perception_node camera_ipc)
 ament_target_dependencies(perception_node ${COMMON_DEPS} autonomy_config autonomy_msgs ament_index_cpp)
 
 add_executable(perception_node_exe src/perception_node_exe.cpp)

@@ -1,18 +1,25 @@
 #include "presence_detection/perception_node.hpp"
+#include "presence_detection/ipc/camera_ipc_validation.hpp"
+#include "common/ipc/ipc_codec.hpp"
 #include <autonomy_config/autonomy_settings.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <iostream>
 #include <numeric>
 #include <cmath>
+#include <cstddef>
+#include <span>
+#include <utility>
 #include <opencv2/dnn.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace presence_detection
 {
 
-perception_node_c::perception_node_c(const std::vector<std::string> & args)
-: base_node_c()
+perception_node_c::perception_node_c(
+  const std::vector<std::string> & args,
+  const base_node::base_node_options_s & options)
+: base_node::ros_base_node_c(options)
 {
   (void)args;
 }
@@ -35,8 +42,16 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
   m_debug_image_pub = this->create_publisher<sensor_msgs::msg::Image>("camera/image_debug", 10);
   m_depth_image_pub = this->create_publisher<sensor_msgs::msg::Image>("camera/depth_debug", 10);
   
+  m_waitset_callback_group = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive,
+    false);
+  rclcpp::SubscriptionOptions subscription_options;
+  subscription_options.callback_group = m_waitset_callback_group;
   m_image_sub = this->create_subscription<sensor_msgs::msg::Image>(
-    "camera/image_raw", 10, [](const sensor_msgs::msg::Image::SharedPtr){});
+    "camera/image_raw",
+    10,
+    [](const sensor_msgs::msg::Image::SharedPtr) {},
+    subscription_options);
 
   auto const config = autonomy_config::AutonomySettings::get_run_time_values();
   std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("presence_detection");
@@ -44,8 +59,11 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
   try {
     m_face_detector = cv::FaceDetectorYN::create(
       yunet_model_path, "", cv::Size(320, 320),
-      static_cast<float>(config.get_perception().get_confidence_threshold()),
-      static_cast<float>(config.get_perception().get_nms_threshold()), 5000);
+      static_cast<float32_t>(
+        config.get_perception().get_confidence_threshold()),
+      static_cast<float32_t>(
+        config.get_perception().get_nms_threshold()),
+      5000);
     RCLCPP_INFO(this->get_logger(), "YuNet Face Detector loaded successfully with TOML config!");
   } catch (const std::exception& e) {
     RCLCPP_ERROR(this->get_logger(), "Failed to load YuNet: %s", e.what());
@@ -55,14 +73,30 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
 
   if (m_client_sock.connect_to_server("@presence_detection_ipc") == core_ret_e::ok) {
     RCLCPP_INFO(this->get_logger(), "Connected to IPC Server via abstract RAM socket! Waiting for SHM fd handshake...");
-    base_node::ipc::ipc_message_t handshake = {};
     int32_t shm_fd = -1;
-    if (m_client_sock.receive_message(handshake, &shm_fd) == core_ret_e::ok && shm_fd >= 0) {
-      const size_t slot_size = static_cast<size_t>(config.get_camera().get_image_width()) * static_cast<size_t>(config.get_camera().get_image_height()) * 3U;
-      m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>(3, slot_size);
-      if (m_shm_buf->attach_from_fd(shm_fd) == core_ret_e::ok) {
+    if (m_client_sock.receive_handshake(shm_fd) == core_ret_e::ok) {
+      m_shm_buf = std::make_unique<base_node::ipc::shm_ring_buffer_c>();
+      common::ipc::stream_descriptor_s stream_descriptor;
+      const bool8_t ring_attached =
+        m_shm_buf->attach_from_fd(shm_fd) == core_ret_e::ok;
+      const std::span<const std::byte> metadata =
+        ring_attached ? m_shm_buf->get_metadata() : std::span<const std::byte>{};
+      const bool8_t descriptor_decoded =
+        common::ipc::deserialize_stream_descriptor(
+          metadata.data(),
+          metadata.size(),
+          stream_descriptor);
+      if (ring_attached &&
+        descriptor_decoded &&
+        stream_descriptor.num_slots == m_shm_buf->get_num_slots() &&
+        stream_descriptor.slot_size == m_shm_buf->get_slot_size() &&
+        presence_detection::ipc::validate_camera_stream_descriptor(stream_descriptor))
+      {
+        m_stream_descriptor = stream_descriptor;
         m_using_ipc = true;
         RCLCPP_INFO(this->get_logger(), "Successfully attached to zero-copy SHM ring buffer over IPC!");
+      } else {
+        m_shm_buf.reset();
       }
     }
   }
@@ -115,42 +149,74 @@ void perception_node_c::step3_run_forever(const std::vector<std::string> & args)
   (void)args;
   RCLCPP_INFO(this->get_logger(), "Main thread now listening for camera frames (IPC Mode: %s)...", m_using_ipc ? "ENABLED" : "FALLBACK DDS");
 
-  base_node::topic::waitset_c<sensor_msgs::msg::Image> ws(*this, m_image_sub);
+  base_node::execution::waitset_c<sensor_msgs::msg::Image> waitset(
+    *this,
+    m_image_sub);
 
-  while (rclcpp::ok() && m_running.load()) {
+  while (this->ok() && m_running.load()) {
     if (m_using_ipc && m_shm_buf && m_shm_buf->is_valid()) {
-      base_node::ipc::ipc_message_t msg = {};
-      if (m_client_sock.receive_message(msg) == core_ret_e::ok) {
-        if (msg.msg_id == 1 && msg.slot_index < m_shm_buf->get_num_slots()) {
-          void * slot_ptr = m_shm_buf->get_slot_pointer(msg.slot_index);
-          if (slot_ptr != nullptr) {
-            cv::Mat shm_frame(static_cast<int>(msg.height), static_cast<int>(msg.width), CV_8UC3, slot_ptr);
-            cv::Mat frame = shm_frame.clone();
-            if (!m_frame_queue->push_back(frame)) {
-              m_frame_queue->pop_front();
-              m_frame_queue->push_back(frame);
+      common::ipc::frame_notification_s notification;
+      if (m_client_sock.receive_frame_notification(notification) == core_ret_e::ok) {
+        if (notification.sequence > m_last_sequence &&
+          notification.slot_index < m_shm_buf->get_num_slots())
+        {
+          const common::ipc::stream_descriptor_s & descriptor = m_stream_descriptor;
+          if (m_shm_buf->try_acquire_slot_for_read(
+              notification.slot_index, notification.sequence))
+          {
+            void * const slot_ptr = m_shm_buf->get_slot_pointer(notification.slot_index);
+            const int32_t cv_type =
+              descriptor.format == common::ipc::pixel_format_e::mono8 ?
+              CV_8UC1 : CV_8UC3;
+            cv::Mat shm_frame(
+              static_cast<int32_t>(descriptor.height),
+              static_cast<int32_t>(descriptor.width),
+              cv_type,
+              slot_ptr,
+              static_cast<size_t>(descriptor.stride));
+            cv::Mat frame;
+            try {
+              frame = shm_frame.clone();
+            } catch (...) {
+              m_shm_buf->release_read_slot(
+                notification.slot_index, notification.sequence);
+              throw;
             }
+            m_shm_buf->release_read_slot(notification.slot_index, notification.sequence);
+            m_last_sequence = notification.sequence;
+            m_frame_queue->push_back(std::move(frame));
           }
         }
       } else {
         RCLCPP_WARN(this->get_logger(), "IPC peer disconnected or socket error. Falling back to DDS.");
         m_using_ipc = false;
+        m_shm_buf.reset();
+        m_stream_descriptor = common::ipc::stream_descriptor_s{};
+        m_last_sequence = 0U;
       }
     } else {
-      auto ret = ws.wait_for_message(std::chrono::milliseconds(100));
-      if (ret == RCL_RET_OK && ws.has_new_message<0>()) {
-        const auto & msg = ws.get_message<0>();
+      const rcl_ret_t wait_result =
+        waitset.wait_for_message(std::chrono::milliseconds(100));
+      if (wait_result == RCL_RET_OK && waitset.has_new_message<0>()) {
+        const sensor_msgs::msg::Image & msg = waitset.get_message<0>();
         try {
           cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(msg, "bgr8");
           cv::Mat frame = cv_ptr->image;
           
-          if (!m_frame_queue->push_back(frame)) {
-            m_frame_queue->pop_front();
-            m_frame_queue->push_back(frame);
-          }
+          m_frame_queue->push_back(std::move(frame));
         } catch (cv_bridge::Exception& e) {
           RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
         }
+      } else if (
+        wait_result != RCL_RET_OK &&
+        wait_result != RCL_RET_TIMEOUT &&
+        wait_result != RCL_RET_ALREADY_SHUTDOWN)
+      {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "DDS wait set failed with rcl return code %d.",
+          static_cast<int32_t>(wait_result));
+        break;
       }
     }
   }
@@ -170,8 +236,8 @@ void perception_node_c::ai_thread_loop()
   float64_t smoothed_fps = 0.0;
   int32_t frame_count = 0;
 
-  while (m_running && rclcpp::ok()) {
-    std::optional<cv::Mat> opt_frame = m_frame_queue->wait_and_pop_front(m_running);
+  while (m_running && this->ok()) {
+    std::optional<cv::Mat> opt_frame = m_frame_queue->wait_and_pop_front();
     if (!opt_frame.has_value()) {
       continue;
     }
@@ -197,18 +263,20 @@ void perception_node_c::ai_thread_loop()
         }
 
         const bool8_t presence = (faces.rows > 0);
-        float max_conf = 0.0f;
+        float32_t max_confidence = 0.0F;
         if (presence) {
-          for (int i = 0; i < faces.rows; ++i) {
-            float conf = faces.at<float>(i, 14);
-            if (conf > max_conf) max_conf = conf;
+          for (int32_t index = 0; index < faces.rows; ++index) {
+            const float32_t confidence = faces.at<float32_t>(index, 14);
+            if (confidence > max_confidence) {
+              max_confidence = confidence;
+            }
           }
         }
         auto msg_presence = std::make_unique<autonomy_msgs::msg::PresenceEvent>();
         msg_presence->header.stamp = this->now();
         msg_presence->header.frame_id = "camera_frame";
         msg_presence->presence_detected = presence;
-        msg_presence->confidence = max_conf;
+        msg_presence->confidence = max_confidence;
         m_presence_pub->publish(std::move(msg_presence));
 
         // 2. Prepare ONNX Input conditionally (only if model is loaded AND presence is detected)
@@ -236,7 +304,7 @@ void perception_node_c::ai_thread_loop()
           channel_g *= (1.0f / 0.224f);
           channel_b *= (1.0f / 0.225f);
 
-          Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+          Ort::Value input_tensor = Ort::Value::CreateTensor<float32_t>(
             *m_memory_info, blob_ptr, input_tensor_size, input_node_dims.data(), input_node_dims.size());
 
           Ort::AllocatorWithDefaultOptions allocator;
@@ -248,7 +316,8 @@ void perception_node_c::ai_thread_loop()
           std::vector<Ort::Value> output_tensors = m_ort_session->Run(
             Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
 
-          float32_t* const floatarr = output_tensors.front().GetTensorMutableData<float>();
+          float32_t * const floatarr =
+            output_tensors.front().GetTensorMutableData<float32_t>();
           depth_map_raw = cv::Mat(depth_input_h, depth_input_w, CV_32F, floatarr).clone();
           
           // Normalize for visualization

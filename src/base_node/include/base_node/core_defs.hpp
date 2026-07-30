@@ -1,5 +1,8 @@
 #pragma once
 
+#include "common/fixed_string.hpp"
+#include "common/numeric_types.hpp"
+
 #include <cstdbool>
 #include <cstdint>
 #include <cmath>
@@ -7,10 +10,6 @@
 
 #if defined _WIN32
   #define CORE_WINDOWS
-#elif defined __APPLE__
-  #define CORE_APPLE
-#elif defined __QNX__
-  #define CORE_QNX
 #else
   #define CORE_LINUX
 #endif
@@ -27,11 +26,10 @@
 #define CORE_LLU_FMT "%lu"
 #endif
 
-#define CORE_STRING_SIZE (256U)
 #define CORE_MILLION (1000000)
 #define CORE_BILLION (1000000000)
 
-enum class core_ret_e : int32_t {
+enum class core_ret_e : common::int32_t {
   ok = 0,
   error = 1,
   bad_arg = 2,
@@ -52,29 +50,19 @@ enum class core_ret_e : int32_t {
 #define OBJ_EXISTS_INDICATOR (0x15U)
 
 using bool8_t = bool;
-using float32_t = float;
-using float64_t = double;
+using float32_t = common::float32_t;
+using float64_t = common::float64_t;
 
-#ifdef CORE_QNX
-#include <sys/types.h>
-#else
-using size64_t = uint64_t;
-#endif
-
-#ifdef CORE_APPLE
-#define DARWIN_SIZE64_T size_t
-#else
-#define DARWIN_SIZE64_T size64_t
-#endif
+using size64_t = common::uint64_t;
 
 using core_ret_t = core_ret_e;
 
-struct core_string2_t { char8_t c_str[2U]; };
-struct core_string4_t { char8_t c_str[4U]; };
-struct core_string8_t { char8_t c_str[8U]; };
-struct core_string16_t { char8_t c_str[16U]; };
-struct core_string32_t { char8_t c_str[32U]; };
-struct core_string64_t { char8_t c_str[64U]; };
-struct core_string256_t { char8_t c_str[CORE_STRING_SIZE]; };
+using core_string2_t = common::fixed_string_c<2U>;
+using core_string4_t = common::fixed_string_c<4U>;
+using core_string8_t = common::string8_t;
+using core_string16_t = common::string16_t;
+using core_string32_t = common::string32_t;
+using core_string64_t = common::string64_t;
+using core_string256_t = common::string256_t;
 
 std::string get_toml_config_directory();

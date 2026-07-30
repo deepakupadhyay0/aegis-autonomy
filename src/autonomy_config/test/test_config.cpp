@@ -23,11 +23,13 @@ TEST(AutonomyConfigTest, PerceptionSettingsVerification)
 {
   auto const config = autonomy_config::AutonomySettings::get_run_time_values();
 
-  double conf = config.get_perception().get_confidence_threshold();
-  double nms = config.get_perception().get_nms_threshold();
+  const common::float64_t confidence =
+    config.get_perception().get_confidence_threshold();
+  const common::float64_t nms =
+    config.get_perception().get_nms_threshold();
 
-  EXPECT_GE(conf, 0.0);
-  EXPECT_LE(conf, 1.0);
+  EXPECT_GE(confidence, 0.0);
+  EXPECT_LE(confidence, 1.0);
 
   EXPECT_GE(nms, 0.0);
   EXPECT_LE(nms, 1.0);

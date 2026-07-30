@@ -1,122 +1,147 @@
 #pragma once
 
-#include <vector>
-#include <cstdint>
-#include <optional>
-#include <condition_variable>
-#include <atomic>
-#include <chrono>
-
 #include "base_node/mutex.hpp"
 #include "base_node/ring_buffer.hpp"
+
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <optional>
+#include <utility>
 
 namespace base_node
 {
 namespace topic
 {
 
-template<typename T>
-class concurrent_ring_buffer_c : public ring_buffer_c<T>
+/// @brief Fixed-capacity thread-safe queue with explicit shutdown behavior.
+template<typename value_t>
+class concurrent_ring_buffer_c
 {
 public:
-  using size_type = typename ring_buffer_c<T>::size_type;
+  using size_type = typename ring_buffer_c<value_t>::size_type;
 
-  explicit concurrent_ring_buffer_c(size_type const max_size)
-  : ring_buffer_c<T>(max_size)
+  explicit concurrent_ring_buffer_c(
+    const size_type max_size,
+    const base_node::sync::priority_inheritance_e priority_inheritance =
+    base_node::sync::priority_inheritance_e::enabled)
+  : m_buffer(max_size),
+    m_mutex(priority_inheritance),
+    m_condition(),
+    m_running(true)
   {
   }
 
-  concurrent_ring_buffer_c() : concurrent_ring_buffer_c(0) {}
+  concurrent_ring_buffer_c()
+  : concurrent_ring_buffer_c(0U)
+  {
+  }
 
-  ~concurrent_ring_buffer_c() override = default;
+  ~concurrent_ring_buffer_c() noexcept
+  {
+    this->shutdown();
+  }
 
-  void clear() noexcept override
+  concurrent_ring_buffer_c(const concurrent_ring_buffer_c &) = delete;
+  concurrent_ring_buffer_c & operator=(const concurrent_ring_buffer_c &) = delete;
+  concurrent_ring_buffer_c(concurrent_ring_buffer_c &&) = delete;
+  concurrent_ring_buffer_c & operator=(concurrent_ring_buffer_c &&) = delete;
+
+  void clear()
   {
     std::lock_guard<base_node::sync::mutex_c> lock(m_mutex);
-    ring_buffer_c<T>::clear();
+    m_buffer.clear();
   }
 
-  bool empty() const noexcept override
+  bool8_t empty() const
   {
     std::lock_guard<base_node::sync::mutex_c> lock(m_mutex);
-    return ring_buffer_c<T>::empty();
+    return m_buffer.empty();
   }
 
-  size_type size() const noexcept override
+  size_type size() const
   {
     std::lock_guard<base_node::sync::mutex_c> lock(m_mutex);
-    return ring_buffer_c<T>::size();
+    return m_buffer.size();
   }
 
-  size_type capacity() const noexcept override
+  size_type capacity() const noexcept
   {
-    return ring_buffer_c<T>::capacity();
+    return m_buffer.capacity();
   }
 
-  bool push_back(const T& value) override
+  bool8_t push_back(const value_t & value)
   {
-    bool pushed = false;
-    {
-      std::lock_guard<base_node::sync::mutex_c> lock(m_mutex);
-      pushed = ring_buffer_c<T>::push_back(value);
-    }
-    if (pushed) m_cv.notify_one();
-    return pushed;
+    return this->push_back_impl(value);
   }
 
-  std::optional<T> pop_front() override
+  bool8_t push_back(value_t && value)
+  {
+    return this->push_back_impl(std::move(value));
+  }
+
+  std::optional<value_t> pop_front()
   {
     std::lock_guard<base_node::sync::mutex_c> lock(m_mutex);
-    return ring_buffer_c<T>::pop_front();
+    return m_buffer.pop_front();
   }
 
-  std::optional<T> wait_and_pop_front(const std::atomic<bool>& running_flag)
+  std::optional<value_t> wait_and_pop_front()
   {
-    m_mutex.lock();
-    while (ring_buffer_c<T>::empty() && running_flag.load()) {
-      m_cv.wait(m_mutex);
-    }
-    
-    if (ring_buffer_c<T>::empty()) {
-      m_mutex.unlock();
+    std::unique_lock<base_node::sync::mutex_c> lock(m_mutex);
+    m_condition.wait(lock, [this]() {
+      return !m_buffer.empty() || !m_running.load();
+    });
+
+    if (!m_running.load()) {
       return std::nullopt;
     }
-    
-    std::optional<T> value = ring_buffer_c<T>::pop_front();
-    m_mutex.unlock();
-    return value;
+    return m_buffer.pop_front();
   }
 
-  template<class Rep, class Period>
-  std::optional<T> wait_and_pop_front_timeout(
-    const std::chrono::duration<Rep, Period>& timeout,
-    const std::atomic<bool>& running_flag)
+  template<class rep_t, class period_t>
+  std::optional<value_t> wait_and_pop_front_timeout(
+    const std::chrono::duration<rep_t, period_t> & timeout)
   {
-    m_mutex.lock();
-    if (ring_buffer_c<T>::empty() && running_flag.load()) {
-      m_cv.wait_for(m_mutex, timeout, [this, &running_flag]() {
-        return !ring_buffer_c<T>::empty() || !running_flag.load();
-      });
-    }
-    
-    if (ring_buffer_c<T>::empty()) {
-      m_mutex.unlock();
+    std::unique_lock<base_node::sync::mutex_c> lock(m_mutex);
+    const bool8_t awakened = m_condition.wait_for(lock, timeout, [this]() {
+      return !m_buffer.empty() || !m_running.load();
+    });
+
+    if (!awakened || !m_running.load()) {
       return std::nullopt;
     }
-    
-    std::optional<T> value = ring_buffer_c<T>::pop_front();
-    m_mutex.unlock();
-    return value;
+    return m_buffer.pop_front();
   }
 
-  void shutdown()
+  void shutdown() noexcept
   {
-    m_cv.notify_all();
+    m_running.store(false);
+    m_condition.notify_all();
   }
 
 private:
+  template<typename source_t>
+  bool8_t push_back_impl(source_t && value)
+  {
+    bool8_t inserted = false;
+    {
+      std::lock_guard<base_node::sync::mutex_c> lock(m_mutex);
+      if (m_running.load()) {
+        inserted = m_buffer.push_back(std::forward<source_t>(value));
+      }
+    }
+    if (inserted) {
+      m_condition.notify_one();
+    }
+    return inserted;
+  }
+
+  ring_buffer_c<value_t> m_buffer;
   mutable base_node::sync::mutex_c m_mutex;
-  std::condition_variable_any m_cv;
+  std::condition_variable_any m_condition;
+  std::atomic<bool8_t> m_running;
 };
 
 }  // namespace topic

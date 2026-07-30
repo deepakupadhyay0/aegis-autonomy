@@ -14,17 +14,22 @@
 #include "base_node/base_node.hpp"
 #include "base_node/ipc/ipc_socket.hpp"
 #include "base_node/ipc/shm_ring_buffer.hpp"
+#include "common/ipc/ipc_protocol.hpp"
 #include "presence_detection/visibility_control.hpp"
 
 namespace presence_detection
 {
 
-class PRESENCE_DETECTION_PUBLIC camera_node_c : public base_node::base_node_c
+class PRESENCE_DETECTION_PUBLIC camera_node_c :
+  public base_node::ros_base_node_c
 {
 public:
-  explicit camera_node_c(const std::vector<std::string> & args);
+  camera_node_c(
+    const std::vector<std::string> & args,
+    const base_node::base_node_options_s & options);
   ~camera_node_c() override;
 
+protected:
   void step1_allocate_resources(const std::vector<std::string> & args) override;
   void step2_start_threads(const std::vector<std::string> & args) override;
   void step3_run_forever(const std::vector<std::string> & args) override;
@@ -36,6 +41,7 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_pub;
 
   std::unique_ptr<base_node::ipc::shm_ring_buffer_c> m_shm_buf;
+  common::ipc::stream_descriptor_s m_stream_descriptor;
   base_node::ipc::ipc_socket_c m_server_sock;
   base_node::ipc::ipc_socket_c m_client_sock;
   std::thread m_accept_thread;

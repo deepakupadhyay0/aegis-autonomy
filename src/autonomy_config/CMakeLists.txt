@@ -11,6 +11,7 @@ add_compile_options(
 )
 
 find_package(ament_cmake REQUIRED)
+find_package(common REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 
 set(TOML_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/toml2cpp.py")
@@ -49,6 +50,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
+  common::common
   tomlplusplus::tomlplusplus
 )
 
@@ -73,6 +75,6 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME})
-ament_export_dependencies(tomlplusplus)
+ament_export_dependencies(common tomlplusplus)
 
 ament_package()

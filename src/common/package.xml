@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>common</name>
+  <version>0.1.0</version>
+  <description>Shared protocol definitions and codecs for the autonomy stack.</description>
+  <maintainer email="8988389+deepakupadhyay0@users.noreply.github.com">Deepak Upadhyay</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
