@@ -3,7 +3,7 @@
 #include "base_core/execution/thread_name.hpp"
 #include "common/ipc/ipc_codec.hpp"
 #include "logging/log_macros.hpp"
-#include <autonomy_config/autonomy_settings.hpp>
+#include <autonomy_config/presence_detection.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <iostream>
@@ -56,7 +56,7 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
     [](const sensor_msgs::msg::Image::SharedPtr) {},
     subscription_options);
 
-  auto const config = autonomy_config::AutonomySettings::get_run_time_values();
+  auto const config = autonomy_config::PresenceDetection::get_run_time_values();
   std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("presence_detection");
   std::string yunet_model_path = pkg_share_dir + "/models/face_detection_yunet.onnx";
   try {

@@ -34,9 +34,7 @@ base_node_c<node_t>::base_node_c(const base_node_options_s & options)
     m_node_added_to_executor = true;
   }
 
-  logging::logger_c::initialize(
-    this->get_fully_qualified_name(),
-    options.logging_options);
+  logging::logger_c::initialize(this->get_fully_qualified_name());
 }
 
 template<typename node_t>

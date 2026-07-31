@@ -27,7 +27,6 @@ add_library(${PROJECT_NAME} SHARED
   src/shm_ring_buffer.cpp
   src/thread_scheduling.cpp
   src/thread_name.cpp
-  src/config/runtime_directories.cpp
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -50,7 +49,7 @@ target_link_libraries(${PROJECT_NAME}
     rclcpp_lifecycle::rclcpp_lifecycle
     autonomy_config::autonomy_config
     common::common
-    logging::logging_client
+    logging::logging
 )
 
 install(

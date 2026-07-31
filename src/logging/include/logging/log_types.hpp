@@ -1,27 +1,45 @@
 #pragma once
 
-#include "common/logging/log_protocol.hpp"
+#include "common/fixed_string.hpp"
+#include "common/numeric_types.hpp"
 
-#include <cstdint>
+#include <chrono>
 
 namespace logging
 {
 
-inline constexpr uint32_t DEFAULT_LOG_QUEUE_CAPACITY = 4096U;
+inline constexpr common::uint32_t DEFAULT_LOG_QUEUE_CAPACITY = 4096U;
 
-using log_level_e = common::logging::log_level_e;
+enum class log_level_e : common::uint8_t
+{
+  debug = 0U,
+  info,
+  warning,
+  error,
+  fatal
+};
+
+struct log_record_s
+{
+  common::uint64_t timestamp_ns{0U};
+  common::uint32_t source_line{0U};
+  log_level_e level{log_level_e::info};
+  common::string16_t thread_name;
+  common::string64_t source_file;
+  common::string256_t message;
+};
 
 struct logging_options_s
 {
+  common::string256_t log_directory;
   log_level_e minimum_level{log_level_e::info};
-  uint32_t queue_capacity{DEFAULT_LOG_QUEUE_CAPACITY};
+  common::uint32_t queue_capacity{DEFAULT_LOG_QUEUE_CAPACITY};
+  common::uint64_t file_size_bytes{0U};
+  common::uint32_t max_files{0U};
   bool enable_console_log{false};
-};
-
-struct logging_service_options_s
-{
-  /// Disabled by default so the service creates no ROS context or DDS entity.
   bool enable_diagnostic_dds{false};
+  bool enable_queue_diagnostics{true};
+  std::chrono::milliseconds queue_diagnostic_interval{5000};
 };
 
 }  // namespace logging

@@ -4,7 +4,7 @@
 #include "common/ipc/ipc_codec.hpp"
 #include "common/resource_names.hpp"
 #include "logging/log_macros.hpp"
-#include <autonomy_config/autonomy_settings.hpp>
+#include <autonomy_config/presence_detection.hpp>
 #include <array>
 #include <cinttypes>
 #include <limits>
@@ -34,7 +34,7 @@ camera_node_c::~camera_node_c()
 void camera_node_c::step1_allocate_resources(const std::vector<std::string> & args)
 {
   (void)args;
-  auto const config = autonomy_config::AutonomySettings::get_run_time_values();
+  auto const config = autonomy_config::PresenceDetection::get_run_time_values();
   m_pub = this->create_publisher<sensor_msgs::msg::Image>("camera/image_raw", 10);
 
   // Initialize OpenCV VideoCapture using TOML config

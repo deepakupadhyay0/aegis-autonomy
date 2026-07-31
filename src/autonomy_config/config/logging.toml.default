@@ -1,0 +1,14 @@
+# Default logging configuration.
+
+log_directory = "logs"
+minimum_level = "info"
+queue_capacity = 4096
+file_size_bytes = 10485760
+max_files = 3
+diagnostics_enabled = true
+diagnostics_interval_ms = 5000
+console_enabled = false
+dds_enabled = false
+
+# Reserved for the future separate-process logging backend.
+standalone_mode = true

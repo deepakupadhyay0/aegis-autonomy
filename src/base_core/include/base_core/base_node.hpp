@@ -26,7 +26,6 @@ struct base_node_options_s
   rclcpp::NodeOptions node_options;
   rclcpp::ExecutorOptions executor_options;
   execution::thread_scheduling_options_s main_thread_scheduling;
-  logging::logging_options_s logging_options;
   bool8_t enable_executor{true};
 };
 

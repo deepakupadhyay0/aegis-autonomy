@@ -1,17 +1,20 @@
 #include "logging/node_log_sink.hpp"
 
-#include <spdlog/async.h>
+#include <spdlog/logger.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
 
 #include <array>
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
+#include <iostream>
+#include <limits>
+#include <stdexcept>
 #include <string>
 #include <string_view>
-#include <utility>
+#include <system_error>
 #include <vector>
 
 namespace logging
@@ -20,9 +23,29 @@ namespace logging
 namespace
 {
 
-constexpr std::size_t MAX_LOG_FILE_SIZE_BYTES = 10U * 1024U * 1024U;
-constexpr std::size_t LOG_ARCHIVE_COUNT = 2U;
 constexpr std::size_t FORMATTED_LOG_CAPACITY = 512U;
+
+std::filesystem::path prepare_log_directory(
+  const std::string_view configured_directory)
+{
+  if (configured_directory.empty()) {
+    throw std::invalid_argument("Logging directory cannot be empty");
+  }
+
+  std::error_code filesystem_error;
+  const std::filesystem::path log_directory(configured_directory);
+  if (!log_directory.is_absolute()) {
+    throw std::invalid_argument("Logging directory must be resolved");
+  }
+  std::filesystem::create_directories(log_directory, filesystem_error);
+  if (filesystem_error ||
+    !std::filesystem::is_directory(log_directory, filesystem_error) ||
+    filesystem_error)
+  {
+    throw std::runtime_error("Failed to create or access log directory");
+  }
+  return log_directory.lexically_normal();
+}
 
 std::string sanitize_node_name(const std::string_view node_name)
 {
@@ -44,18 +67,18 @@ std::string sanitize_node_name(const std::string_view node_name)
   return result.empty() ? std::string("node") : result;
 }
 
-std::string_view level_name(const common::logging::log_level_e level) noexcept
+std::string_view level_name(const log_level_e level) noexcept
 {
   switch (level) {
-    case common::logging::log_level_e::debug:
+    case log_level_e::debug:
       return "DEBUG";
-    case common::logging::log_level_e::info:
+    case log_level_e::info:
       return "INFO";
-    case common::logging::log_level_e::warning:
+    case log_level_e::warning:
       return "WARN";
-    case common::logging::log_level_e::error:
+    case log_level_e::error:
       return "ERROR";
-    case common::logging::log_level_e::fatal:
+    case log_level_e::fatal:
       return "FATAL";
     default:
       return "UNKNOWN";
@@ -63,18 +86,18 @@ std::string_view level_name(const common::logging::log_level_e level) noexcept
 }
 
 spdlog::level::level_enum to_spdlog_level(
-  const common::logging::log_level_e level) noexcept
+  const log_level_e level) noexcept
 {
   switch (level) {
-    case common::logging::log_level_e::debug:
+    case log_level_e::debug:
       return spdlog::level::debug;
-    case common::logging::log_level_e::info:
+    case log_level_e::info:
       return spdlog::level::info;
-    case common::logging::log_level_e::warning:
+    case log_level_e::warning:
       return spdlog::level::warn;
-    case common::logging::log_level_e::error:
+    case log_level_e::error:
       return spdlog::level::err;
-    case common::logging::log_level_e::fatal:
+    case log_level_e::fatal:
       return spdlog::level::critical;
     default:
       return spdlog::level::off;
@@ -82,7 +105,7 @@ spdlog::level::level_enum to_spdlog_level(
 }
 
 std::string_view format_record(
-  const common::logging::log_record_s & record,
+  const log_record_s & record,
   std::array<char, FORMATTED_LOG_CAPACITY> & output) noexcept
 {
   const std::time_t seconds = static_cast<std::time_t>(
@@ -133,59 +156,79 @@ std::string_view format_record(
 }  // namespace
 
 node_log_sink_c::node_log_sink_c(
-  const std::filesystem::path & log_directory,
-  const common::logging::log_registration_s & registration,
-  const std::shared_ptr<spdlog::details::thread_pool> & thread_pool)
+  const std::string_view node_name,
+  const std::string_view configured_log_directory,
+  const common::uint64_t file_size_bytes,
+  const common::uint32_t max_files,
+  const bool enable_console_log)
 : m_logger()
 {
-  const std::string logger_name = sanitize_node_name(
-    registration.node_name.view());
+  if (file_size_bytes == 0U ||
+    file_size_bytes > std::numeric_limits<std::size_t>::max())
+  {
+    throw std::invalid_argument("Logging file size is invalid");
+  }
+  if (max_files == 0U) {
+    throw std::invalid_argument("Logging max files must be positive");
+  }
+
+  const std::filesystem::path log_directory =
+    prepare_log_directory(configured_log_directory);
+  std::cerr << "Logging directory: " << log_directory.string() << '\n';
+
+  const std::string logger_name = sanitize_node_name(node_name);
   const std::filesystem::path log_file =
     log_directory / (logger_name + ".log");
 
   std::vector<spdlog::sink_ptr> sinks;
-  sinks.reserve(registration.enable_console_log ? 2U : 1U);
+  sinks.reserve(enable_console_log ? 2U : 1U);
   sinks.emplace_back(
     std::make_shared<spdlog::sinks::rotating_file_sink_st>(
       log_file.string(),
-      MAX_LOG_FILE_SIZE_BYTES,
-      LOG_ARCHIVE_COUNT,
+      static_cast<std::size_t>(file_size_bytes),
+      static_cast<std::size_t>(max_files - 1U),
       false));
-  if (registration.enable_console_log) {
+  if (enable_console_log) {
     sinks.emplace_back(
       std::make_shared<spdlog::sinks::stdout_color_sink_st>());
   }
 
-  m_logger = std::make_shared<spdlog::async_logger>(
+  m_logger = std::make_shared<spdlog::logger>(
     logger_name,
     sinks.begin(),
-    sinks.end(),
-    thread_pool,
-    spdlog::async_overflow_policy::overrun_oldest);
+    sinks.end());
   m_logger->set_level(spdlog::level::debug);
   m_logger->set_pattern("%^%v%$");
 }
 
 node_log_sink_c::~node_log_sink_c() noexcept
 {
-  if (m_logger != nullptr) {
-    try {
-      m_logger->flush();
-    } catch (...) {
-    }
+  static_cast<void>(this->flush());
+}
+
+bool node_log_sink_c::flush() noexcept
+{
+  if (m_logger == nullptr) {
+    return false;
+  }
+  try {
+    m_logger->flush();
+    return true;
+  } catch (...) {
+    return false;
   }
 }
 
-void node_log_sink_c::write(
-  const common::logging::log_record_s & record) noexcept
+bool node_log_sink_c::write(
+  const log_record_s & record) noexcept
 {
   if (m_logger == nullptr) {
-    return;
+    return false;
   }
   std::array<char, FORMATTED_LOG_CAPACITY> output{};
   const std::string_view formatted_record = format_record(record, output);
   if (formatted_record.empty()) {
-    return;
+    return false;
   }
   try {
     m_logger->log(
@@ -193,7 +236,9 @@ void node_log_sink_c::write(
       spdlog::string_view_t(
         formatted_record.data(),
         formatted_record.size()));
+    return true;
   } catch (...) {
+    return false;
   }
 }
 

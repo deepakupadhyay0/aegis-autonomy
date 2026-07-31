@@ -42,9 +42,11 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED
   ${GENERATED_SOURCES}
+  src/config_directory.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${GEN_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
@@ -55,8 +57,18 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 )
 
 install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+install(
   DIRECTORY ${GEN_DIR}/include/
   DESTINATION include
+)
+
+install(
+  DIRECTORY config/
+  DESTINATION share/${PROJECT_NAME}/config
 )
 
 install(

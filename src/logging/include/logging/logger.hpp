@@ -1,10 +1,11 @@
 #pragma once
 
 #include "common/fixed_string.hpp"
-#include "logging/log_client.hpp"
+#include "common/numeric_types.hpp"
 #include "logging/log_types.hpp"
 #include "logging/visibility_control.hpp"
 
+#include <atomic>
 #include <array>
 #include <cstddef>
 #include <cstdio>
@@ -21,6 +22,8 @@ class base_node_c;
 
 namespace logging
 {
+
+class abstract_log_backend_c;
 
 /// Process-local logger facade. base_node_c initializes it before derived-node
 /// construction and shuts it down only after application workers have stopped.
@@ -113,15 +116,27 @@ public:
   }
 
 private:
+  enum class initialization_state_e : common::uint8_t
+  {
+    uninitialized = 0U,
+    initializing,
+    initialized,
+    shutting_down
+  };
+
   template<typename node_t>
   friend class ::base_core::base_node_c;
 
   static void initialize(
-    std::string_view node_name,
-    const logging_options_s & options);
+    std::string_view node_name);
   static void shutdown() noexcept;
+  void log_build_information() noexcept;
 
-  static std::unique_ptr<logger_c> m_instance;
+  /// Non-owning hot-path pointer, published only after m_instance_owner owns
+  /// the fully constructed logger.
+  static std::atomic<logger_c *> m_instance;
+  static std::atomic<initialization_state_e> m_initialization_state;
+  static std::unique_ptr<logger_c> m_instance_owner;
   std::unique_ptr<abstract_log_backend_c> m_backend;
 };
 

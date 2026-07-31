@@ -11,71 +11,133 @@ add_compile_options(
 )
 
 find_package(ament_cmake REQUIRED)
+find_package(autonomy_config REQUIRED)
 find_package(common REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(Git QUIET)
 find_package(rclcpp REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Threads REQUIRED)
 
-add_library(logging_client SHARED
-  src/log_client.cpp
-  src/log_queue.cpp
-  src/logger.cpp
-  src/unix_log_transport.cpp
-)
-add_library(logging::logging_client ALIAS logging_client)
+ament_package_xml()
 
-set_target_properties(logging_client PROPERTIES
+set(LOGGING_GIT_PROJECT "unknown")
+set(LOGGING_LAST_SHA "unknown")
+set(LOGGING_BRANCH_NAME "detached")
+set(LOGGING_CICD_SHA "not_available")
+if(GIT_FOUND)
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}"
+      remote get-url origin
+    OUTPUT_VARIABLE LOGGING_GIT_REMOTE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(NOT LOGGING_GIT_REMOTE STREQUAL "")
+    string(REGEX REPLACE "^.*[/:]" ""
+      LOGGING_GIT_PROJECT "${LOGGING_GIT_REMOTE}")
+    string(REGEX REPLACE "\\.git$" ""
+      LOGGING_GIT_PROJECT "${LOGGING_GIT_PROJECT}")
+  else()
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}"
+        rev-parse --show-toplevel
+      OUTPUT_VARIABLE LOGGING_GIT_ROOT
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
+    )
+    if(NOT LOGGING_GIT_ROOT STREQUAL "")
+      get_filename_component(LOGGING_GIT_PROJECT "${LOGGING_GIT_ROOT}" NAME)
+    endif()
+  endif()
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}"
+      rev-parse HEAD
+    OUTPUT_VARIABLE LOGGING_GIT_SHA
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(NOT LOGGING_GIT_SHA STREQUAL "")
+    set(LOGGING_LAST_SHA "${LOGGING_GIT_SHA}")
+  endif()
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}"
+      branch --show-current
+    OUTPUT_VARIABLE LOGGING_GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(NOT LOGGING_GIT_BRANCH STREQUAL "")
+    set(LOGGING_BRANCH_NAME "${LOGGING_GIT_BRANCH}")
+  endif()
+endif()
+
+if(NOT "$ENV{CICD_SHA}" STREQUAL "")
+  set(LOGGING_CICD_SHA "$ENV{CICD_SHA}")
+elseif(NOT "$ENV{CI_COMMIT_SHA}" STREQUAL "")
+  set(LOGGING_CICD_SHA "$ENV{CI_COMMIT_SHA}")
+elseif(NOT "$ENV{GITHUB_SHA}" STREQUAL "")
+  set(LOGGING_CICD_SHA "$ENV{GITHUB_SHA}")
+endif()
+if(NOT "$ENV{CI_COMMIT_REF_NAME}" STREQUAL "")
+  set(LOGGING_BRANCH_NAME "$ENV{CI_COMMIT_REF_NAME}")
+elseif(NOT "$ENV{GITHUB_REF_NAME}" STREQUAL "")
+  set(LOGGING_BRANCH_NAME "$ENV{GITHUB_REF_NAME}")
+endif()
+string(TIMESTAMP LOGGING_BUILD_TIMESTAMP "%Y-%m-%dT%H:%M:%SZ" UTC)
+
+add_library(${PROJECT_NAME} SHARED
+  src/diagnostic_dds_sink.cpp
+  src/log_backend.cpp
+  src/log_queue.cpp
+  src/logging_config.cpp
+  src/logger.cpp
+  src/node_log_sink.cpp
+)
+add_library(logging::logging ALIAS ${PROJECT_NAME})
+
+set_target_properties(${PROJECT_NAME} PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN YES
 )
-target_compile_definitions(logging_client PRIVATE LOGGING_BUILDING_DLL)
-target_include_directories(logging_client PUBLIC
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+  LOGGING_BUILDING_DLL
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_CMAKE_PROJECT=\"${PROJECT_NAME}\">"
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_PACKAGE_VERSION=\"${${PROJECT_NAME}_VERSION}\">"
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_GIT_PROJECT=\"${LOGGING_GIT_PROJECT}\">"
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_LAST_SHA=\"${LOGGING_LAST_SHA}\">"
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_CICD_SHA=\"${LOGGING_CICD_SHA}\">"
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_BRANCH_NAME=\"${LOGGING_BRANCH_NAME}\">"
+  "$<$<COMPILE_LANGUAGE:CXX>:CORE_LOGGER_BUILD_TIMESTAMP=\"${LOGGING_BUILD_TIMESTAMP}\">"
+)
+target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(logging_client
-  PUBLIC common::common
-  PRIVATE Threads::Threads
-)
-
-add_executable(logging_service
-  src/diagnostic_dds_sink.cpp
-  src/logging_service.cpp
-  src/main.cpp
-  src/node_log_sink.cpp
-)
-target_include_directories(logging_service PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
-target_link_libraries(logging_service
+target_link_libraries(${PROJECT_NAME}
+  autonomy_config::autonomy_config
   common::common
   spdlog::spdlog
   Threads::Threads
 )
-ament_target_dependencies(logging_service diagnostic_msgs rclcpp)
+ament_target_dependencies(${PROJECT_NAME} diagnostic_msgs rclcpp)
 
 install(DIRECTORY include/ DESTINATION include)
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 install(
-  TARGETS logging_client
+  TARGETS ${PROJECT_NAME}
   EXPORT export_logging
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
   INCLUDES DESTINATION include
 )
-install(
-  TARGETS logging_service
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
-)
-
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
-  ament_add_gtest(test_log_client test/test_log_client.cpp)
-  target_link_libraries(test_log_client logging_client)
+  ament_add_gtest(test_log_backend test/test_log_backend.cpp)
+  target_link_libraries(test_log_backend ${PROJECT_NAME})
   ament_add_gtest(test_log_queue test/test_log_queue.cpp)
-  target_link_libraries(test_log_queue logging_client)
+  target_link_libraries(test_log_queue ${PROJECT_NAME})
 endif()
 
 ament_export_targets(
@@ -83,6 +145,13 @@ ament_export_targets(
   HAS_LIBRARY_TARGET
   NAMESPACE logging::
 )
-ament_export_dependencies(common)
+ament_export_dependencies(
+  common
+  autonomy_config
+  diagnostic_msgs
+  rclcpp
+  spdlog
+  Threads
+)
 
 ament_package()

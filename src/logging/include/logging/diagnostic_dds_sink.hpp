@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/logging/log_protocol.hpp"
+#include "logging/log_types.hpp"
 #include "logging/visibility_control.hpp"
 
 #include <memory>
@@ -24,7 +24,7 @@ public:
 
   void add(
     std::string_view node_name,
-    const common::logging::log_record_s & record) noexcept;
+    const log_record_s & record) noexcept;
   void flush_if_due() noexcept;
   void flush() noexcept;
 

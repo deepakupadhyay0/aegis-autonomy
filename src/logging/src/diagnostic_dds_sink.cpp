@@ -22,16 +22,16 @@ constexpr std::size_t MAX_DIAGNOSTIC_BATCH_SIZE = 32U;
 constexpr std::chrono::milliseconds DIAGNOSTIC_FLUSH_INTERVAL{50};
 
 uint8_t to_diagnostic_level(
-  const common::logging::log_level_e level) noexcept
+  const log_level_e level) noexcept
 {
   switch (level) {
-    case common::logging::log_level_e::debug:
-    case common::logging::log_level_e::info:
+    case log_level_e::debug:
+    case log_level_e::info:
       return diagnostic_msgs::msg::DiagnosticStatus::OK;
-    case common::logging::log_level_e::warning:
+    case log_level_e::warning:
       return diagnostic_msgs::msg::DiagnosticStatus::WARN;
-    case common::logging::log_level_e::error:
-    case common::logging::log_level_e::fatal:
+    case log_level_e::error:
+    case log_level_e::fatal:
       return diagnostic_msgs::msg::DiagnosticStatus::ERROR;
     default:
       return diagnostic_msgs::msg::DiagnosticStatus::STALE;
@@ -44,7 +44,7 @@ class diagnostic_dds_sink_impl_c final
 {
 public:
   diagnostic_dds_sink_impl_c()
-  : m_node(std::make_shared<rclcpp::Node>("logging_service_diagnostics")),
+  : m_node(std::make_shared<rclcpp::Node>("logging_diagnostics")),
     m_publisher(m_node->create_publisher<
         diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 10U)),
     m_batch(),
@@ -55,13 +55,13 @@ public:
 
   void add(
     const std::string_view node_name,
-    const common::logging::log_record_s & record)
+    const log_record_s & record)
   {
     diagnostic_msgs::msg::DiagnosticStatus status;
     status.level = to_diagnostic_level(record.level);
     status.name.assign(node_name);
     status.message.assign(record.message.view());
-    status.hardware_id = "logging_service";
+    status.hardware_id = "local_logger";
     status.values.reserve(3U);
 
     diagnostic_msgs::msg::KeyValue thread_name;
@@ -125,7 +125,7 @@ diagnostic_dds_sink_c::~diagnostic_dds_sink_c() noexcept
 
 void diagnostic_dds_sink_c::add(
   const std::string_view node_name,
-  const common::logging::log_record_s & record) noexcept
+  const log_record_s & record) noexcept
 {
   try {
     m_impl->add(node_name, record);
