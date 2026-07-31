@@ -62,7 +62,7 @@ protected:
 TEST_F(NodeTestFixture, PerceptionNodeInitialization)
 {
   const base_core::base_node_options_s options =
-    make_node_options("perception_node");
+    make_node_options(common::string64_t{"perception_node"});
   std::shared_ptr<presence_detection::perception_node_c> node =
     std::make_shared<presence_detection::perception_node_c>(
     std::vector<std::string>{},
@@ -74,7 +74,7 @@ TEST_F(NodeTestFixture, PerceptionNodeInitialization)
 TEST_F(NodeTestFixture, PerceptionNodeResourceAllocation)
 {
   const base_core::base_node_options_s options =
-    make_node_options("perception_node");
+    make_node_options(common::string64_t{"perception_node"});
   std::shared_ptr<testable_perception_node_c> node =
     std::make_shared<testable_perception_node_c>(
     std::vector<std::string>{},
@@ -89,7 +89,7 @@ TEST_F(NodeTestFixture, PerceptionNodeResourceAllocation)
 TEST_F(NodeTestFixture, CameraNodeInitialization)
 {
   const base_core::base_node_options_s options =
-    make_node_options("camera_node");
+    make_node_options(common::string64_t{"camera_node"});
   std::shared_ptr<presence_detection::camera_node_c> node =
     std::make_shared<presence_detection::camera_node_c>(
     std::vector<std::string>{},
@@ -101,7 +101,7 @@ TEST_F(NodeTestFixture, CameraNodeInitialization)
 TEST_F(NodeTestFixture, CameraNodeHardwareFallbackHandling)
 {
   const base_core::base_node_options_s options =
-    make_node_options("camera_node");
+    make_node_options(common::string64_t{"camera_node"});
   std::shared_ptr<testable_camera_node_c> node =
     std::make_shared<testable_camera_node_c>(
     std::vector<std::string>{},

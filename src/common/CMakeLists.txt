@@ -13,7 +13,9 @@ add_compile_options(
 find_package(ament_cmake REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
+  src/exit_detection.cpp
   src/ipc_codec.cpp
+  src/log_codec.cpp
 )
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
@@ -46,6 +48,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_fixed_string ${PROJECT_NAME})
   ament_add_gtest(test_numeric_types test/test_numeric_types.cpp)
   target_link_libraries(test_numeric_types ${PROJECT_NAME})
+  ament_add_gtest(test_log_codec test/test_log_codec.cpp)
+  target_link_libraries(test_log_codec ${PROJECT_NAME})
 endif()
 
 ament_package()

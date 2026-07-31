@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <memory>
 #include <stdexcept>
 #include <tuple>
@@ -49,7 +50,9 @@ public:
   {
     const rcl_ret_t result = rcl_wait_set_fini(&m_waitset);
     if (result != RCL_RET_OK) {
-      RCLCPP_ERROR(rclcpp::get_logger("waitset_c"), "rcl_wait_set_fini failed");
+      static_cast<void>(std::fputs(
+          "waitset_c: rcl_wait_set_fini failed\n",
+          stderr));
     }
   }
 

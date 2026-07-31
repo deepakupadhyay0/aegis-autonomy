@@ -6,7 +6,6 @@
 #include <cstdbool>
 #include <cstdint>
 #include <cmath>
-#include <string>
 
 #if defined _WIN32
   #define CORE_WINDOWS
@@ -64,5 +63,3 @@ using core_string16_t = common::string16_t;
 using core_string32_t = common::string32_t;
 using core_string64_t = common::string64_t;
 using core_string256_t = common::string256_t;
-
-std::string get_toml_config_directory();

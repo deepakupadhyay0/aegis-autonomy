@@ -1,0 +1,128 @@
+#pragma once
+
+#include "common/fixed_string.hpp"
+#include "logging/log_client.hpp"
+#include "logging/log_types.hpp"
+#include "logging/visibility_control.hpp"
+
+#include <array>
+#include <cstddef>
+#include <cstdio>
+#include <memory>
+#include <source_location>
+#include <string_view>
+#include <utility>
+
+namespace base_core
+{
+template<typename node_t>
+class base_node_c;
+}
+
+namespace logging
+{
+
+/// Process-local logger facade. base_node_c initializes it before derived-node
+/// construction and shuts it down only after application workers have stopped.
+/// get_logger() performs no synchronization on the logging hot path.
+class LOGGING_PUBLIC logger_c final
+{
+  struct construction_token_s final
+  {
+  };
+
+public:
+  logger_c(
+    construction_token_s,
+    std::string_view node_name,
+    const logging_options_s & options);
+  ~logger_c() noexcept;
+
+  logger_c(const logger_c &) = delete;
+  logger_c & operator=(const logger_c &) = delete;
+  logger_c(logger_c &&) = delete;
+  logger_c & operator=(logger_c &&) = delete;
+
+  static logger_c & get_logger() noexcept;
+  static bool is_initialized() noexcept;
+
+  bool should_log(log_level_e level) const noexcept;
+  void log(
+    log_level_e level,
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) noexcept;
+
+  void debug(
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) noexcept;
+  void info(
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) noexcept;
+  void warning(
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) noexcept;
+  void error(
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) noexcept;
+  void fatal(
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) noexcept;
+
+  template<std::size_t format_size_v, typename ... argument_ts>
+  void log_format(
+    const log_level_e level,
+    const std::source_location & location,
+    const char (&format)[format_size_v],
+    argument_ts && ... arguments) noexcept
+  {
+    static_assert(format_size_v > 1U, "Log format cannot be empty");
+    static_assert(
+      format_size_v - 1U <= common::string256_t::capacity(),
+      "Log format exceeds fixed log message capacity");
+    if (!this->should_log(level)) {
+      return;
+    }
+
+    std::array<char, common::string256_t::capacity() + 1U> message{};
+    const int32_t formatted_size = static_cast<int32_t>(
+      std::snprintf(
+        message.data(),
+        message.size(),
+        format,
+        std::forward<argument_ts>(arguments)...));
+    if (formatted_size < 0) {
+      this->log(level, "Log message formatting failed", location);
+      return;
+    }
+
+    const std::size_t message_size =
+      static_cast<std::size_t>(formatted_size) <
+      common::string256_t::capacity() ?
+      static_cast<std::size_t>(formatted_size) :
+      common::string256_t::capacity();
+    this->log(
+      level,
+      std::string_view(message.data(), message_size),
+      location);
+  }
+
+private:
+  template<typename node_t>
+  friend class ::base_core::base_node_c;
+
+  static void initialize(
+    std::string_view node_name,
+    const logging_options_s & options);
+  static void shutdown() noexcept;
+
+  static std::unique_ptr<logger_c> m_instance;
+  std::unique_ptr<abstract_log_backend_c> m_backend;
+};
+
+}  // namespace logging

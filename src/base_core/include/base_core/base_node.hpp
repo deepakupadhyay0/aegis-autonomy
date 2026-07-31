@@ -3,6 +3,7 @@
 #include "base_core/execution/thread_scheduling.hpp"
 #include "base_core/visibility_control.hpp"
 #include "common/fixed_string.hpp"
+#include "logging/logger.hpp"
 
 #include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -25,6 +26,7 @@ struct base_node_options_s
   rclcpp::NodeOptions node_options;
   rclcpp::ExecutorOptions executor_options;
   execution::thread_scheduling_options_s main_thread_scheduling;
+  logging::logging_options_s logging_options;
   bool8_t enable_executor{true};
 };
 
@@ -53,13 +55,9 @@ public:
   bool8_t ok() const;
   bool8_t ok(const rclcpp::Context::SharedPtr & context) const;
 
-  template<typename derived_node_t>
-  static int32_t create_and_execute_class(
-    const int32_t argc,
-    char const * const * const argv,
-    const base_node_options_s & options);
-
 protected:
+  static logging::logger_c & get_logger() noexcept;
+
   virtual void step1_allocate_resources(const std::vector<std::string> & args) = 0;
   virtual void step2_start_threads(const std::vector<std::string> & args) = 0;
   virtual void step3_run_forever(const std::vector<std::string> & args) = 0;

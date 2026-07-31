@@ -1,12 +1,15 @@
 #include "presence_detection/perception_node.hpp"
 #include "presence_detection/ipc/camera_ipc_validation.hpp"
+#include "base_core/execution/thread_name.hpp"
 #include "common/ipc/ipc_codec.hpp"
+#include "logging/log_macros.hpp"
 #include <autonomy_config/autonomy_settings.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <iostream>
 #include <numeric>
 #include <cmath>
+#include <cinttypes>
 #include <cstddef>
 #include <span>
 #include <utility>
@@ -64,15 +67,19 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
       static_cast<float32_t>(
         config.get_perception().get_nms_threshold()),
       5000);
-    RCLCPP_INFO(this->get_logger(), "YuNet Face Detector loaded successfully with TOML config!");
+    CORE_LOG_INFO(
+      "YuNet face detector loaded with TOML configuration");
   } catch (const std::exception& e) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to load YuNet: %s", e.what());
+    CORE_LOG_ERROR(
+      "Failed to load YuNet: %s",
+      e.what());
   }
 
   m_frame_queue = std::make_unique<base_core::topic::concurrent_ring_buffer_c<cv::Mat>>(2);
 
   if (m_client_sock.connect_to_server("@presence_detection_ipc") == core_ret_e::ok) {
-    RCLCPP_INFO(this->get_logger(), "Connected to IPC Server via abstract RAM socket! Waiting for SHM fd handshake...");
+    CORE_LOG_INFO(
+      "Connected to IPC server; waiting for SHM descriptor handshake");
     int32_t shm_fd = -1;
     if (m_client_sock.receive_handshake(shm_fd) == core_ret_e::ok) {
       m_shm_buf = std::make_unique<base_core::ipc::shm_ring_buffer_c>();
@@ -94,7 +101,8 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
       {
         m_stream_descriptor = stream_descriptor;
         m_using_ipc = true;
-        RCLCPP_INFO(this->get_logger(), "Successfully attached to zero-copy SHM ring buffer over IPC!");
+        CORE_LOG_INFO(
+          "Attached to SHM ring buffer over IPC");
       } else {
         m_shm_buf.reset();
       }
@@ -102,7 +110,8 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
   }
 
   if (!m_using_ipc) {
-    RCLCPP_WARN(this->get_logger(), "IPC handshake failed or unavailable. Falling back to DDS topic subscription.");
+    CORE_LOG_WARN(
+      "IPC handshake unavailable; falling back to DDS subscription");
   }
 
   m_running = true;
@@ -115,7 +124,11 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
   const int32_t optimal_threads = static_cast<int32_t>(std::max(1U, hw_cores / 4U));
   cv::setNumThreads(optimal_threads);
   session_options.SetIntraOpNumThreads(optimal_threads);
-  RCLCPP_INFO(this->get_logger(), "OpenCV / YuNet and ONNX Runtime configured dynamically with %d CPU threads (HW Concurrency / 4: %u)", optimal_threads, hw_cores);
+  CORE_LOG_INFO(
+    "OpenCV, YuNet, and ONNX Runtime configured with %" PRId32
+    " CPU threads from %" PRIu32 " hardware threads",
+    optimal_threads,
+    hw_cores);
   session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
   // Enable CUDA if available, otherwise fallback to CPU
@@ -123,18 +136,24 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
     OrtCUDAProviderOptions cuda_options;
     cuda_options.device_id = 0;
     session_options.AppendExecutionProvider_CUDA(cuda_options);
-    RCLCPP_INFO(this->get_logger(), "ONNX Runtime: CUDA Execution Provider Enabled!");
+    CORE_LOG_INFO(
+      "ONNX Runtime CUDA execution provider enabled");
   } catch (const std::exception& e) {
-    RCLCPP_WARN(this->get_logger(), "CUDA Execution Provider failed to load, falling back to CPU: %s", e.what());
+    CORE_LOG_WARN(
+      "CUDA execution provider unavailable; using CPU: %s",
+      e.what());
   }
 
   std::string model_path = pkg_share_dir + "/models/depth_anything_v2.onnx";
   try {
     m_ort_session = std::make_unique<Ort::Session>(*m_ort_env, model_path.c_str(), session_options);
     m_memory_info = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault));
-    RCLCPP_INFO(this->get_logger(), "Depth Anything V2 Small (vits) Model loaded successfully!");
+    CORE_LOG_INFO(
+      "Depth Anything V2 Small model loaded");
   } catch (const std::exception& e) {
-    RCLCPP_ERROR(this->get_logger(), "Failed to load ONNX model: %s", e.what());
+    CORE_LOG_ERROR(
+      "Failed to load ONNX model: %s",
+      e.what());
   }
 }
 
@@ -147,7 +166,9 @@ void perception_node_c::step2_start_threads(const std::vector<std::string> & arg
 void perception_node_c::step3_run_forever(const std::vector<std::string> & args)
 {
   (void)args;
-  RCLCPP_INFO(this->get_logger(), "Main thread now listening for camera frames (IPC Mode: %s)...", m_using_ipc ? "ENABLED" : "FALLBACK DDS");
+  CORE_LOG_INFO(
+    "Main thread listening for camera frames using %s",
+    m_using_ipc ? "IPC" : "DDS fallback");
 
   base_core::execution::waitset_c<sensor_msgs::msg::Image> waitset(
     *this,
@@ -188,7 +209,8 @@ void perception_node_c::step3_run_forever(const std::vector<std::string> & args)
           }
         }
       } else {
-        RCLCPP_WARN(this->get_logger(), "IPC peer disconnected or socket error. Falling back to DDS.");
+        CORE_LOG_WARN(
+          "IPC peer disconnected; falling back to DDS");
         m_using_ipc = false;
         m_shm_buf.reset();
         m_stream_descriptor = common::ipc::stream_descriptor_s{};
@@ -205,16 +227,17 @@ void perception_node_c::step3_run_forever(const std::vector<std::string> & args)
           
           m_frame_queue->push_back(std::move(frame));
         } catch (cv_bridge::Exception& e) {
-          RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+          CORE_LOG_ERROR(
+            "cv_bridge exception: %s",
+            e.what());
         }
       } else if (
         wait_result != RCL_RET_OK &&
         wait_result != RCL_RET_TIMEOUT &&
         wait_result != RCL_RET_ALREADY_SHUTDOWN)
       {
-        RCLCPP_ERROR(
-          this->get_logger(),
-          "DDS wait set failed with rcl return code %d.",
+        CORE_LOG_ERROR(
+          "DDS wait set failed with rcl return code %" PRId32,
           static_cast<int32_t>(wait_result));
         break;
       }
@@ -224,7 +247,9 @@ void perception_node_c::step3_run_forever(const std::vector<std::string> & args)
 
 void perception_node_c::ai_thread_loop()
 {
-  RCLCPP_INFO(this->get_logger(), "Background AI Thread started! Running ONNX Inference asynchronously.");
+  base_core::execution::set_current_thread_name("ai_inference");
+  CORE_LOG_INFO(
+    "Background AI thread started");
 
   // Depth Anything V2 input dimensions
   const int32_t depth_input_w = 512; // Downscaled via binning
@@ -410,19 +435,26 @@ void perception_node_c::ai_thread_loop()
         m_debug_image_pub->publish(std::move(debug_msg));
 
       } catch (const cv_bridge::Exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s. Initiating graceful shutdown.", e.what());
+        CORE_LOG_ERROR(
+          "cv_bridge exception: %s; initiating shutdown",
+          e.what());
         m_running = false;
         rclcpp::shutdown();
       } catch (const cv::Exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "OpenCV exception in AI thread: %s. Initiating graceful shutdown.", e.what());
+        CORE_LOG_ERROR(
+          "OpenCV exception in AI thread: %s; initiating shutdown",
+          e.what());
         m_running = false;
         rclcpp::shutdown();
       } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Standard exception in AI thread: %s. Initiating graceful shutdown.", e.what());
+        CORE_LOG_ERROR(
+          "Standard exception in AI thread: %s; initiating shutdown",
+          e.what());
         m_running = false;
         rclcpp::shutdown();
       } catch (...) {
-        RCLCPP_ERROR(this->get_logger(), "Unknown critical exception in AI thread! Initiating graceful shutdown.");
+        CORE_LOG_ERROR(
+          "Unknown critical exception in AI thread; initiating shutdown");
         m_running = false;
         rclcpp::shutdown();
       }

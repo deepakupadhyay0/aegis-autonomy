@@ -18,6 +18,8 @@ static_assert(common::string256_t::capacity() == 256U);
 static_assert(EXACT_CAPACITY_STRING.size() == 8U);
 static_assert(EXACT_CAPACITY_STRING.view() == "12345678");
 static_assert(EXACT_CAPACITY_STRING.c_str()[8U] == '\0');
+static_assert(EXACT_CAPACITY_STRING == "12345678");
+static_assert("12345678" == EXACT_CAPACITY_STRING);
 
 }  // namespace
 
@@ -69,4 +71,23 @@ TEST(FixedStringTest, SupportsAssignmentFromOwnView)
   value.assign(value.view());
 
   EXPECT_EQ(value.view(), "value");
+}
+
+TEST(FixedStringTest, AssignsFromStringView)
+{
+  common::string8_t value;
+  const std::string_view source{"value"};
+
+  value = source;
+
+  EXPECT_EQ(value.view(), source);
+}
+
+TEST(FixedStringTest, ComparesWithStringViewsInBothOrders)
+{
+  const common::string8_t value{"value"};
+  const std::string_view view{"value"};
+
+  EXPECT_TRUE(value == view);
+  EXPECT_TRUE(view == value);
 }

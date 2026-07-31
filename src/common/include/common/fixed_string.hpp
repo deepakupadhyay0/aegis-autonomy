@@ -16,7 +16,7 @@ public:
   constexpr fixed_string_c() noexcept = default;
 
   template<std::size_t literal_size_v>
-  consteval fixed_string_c(const char (&value)[literal_size_v])
+  explicit consteval fixed_string_c(const char (&value)[literal_size_v])
   {
     static_assert(literal_size_v > 0U, "String literal must include a terminator");
     static_assert(
@@ -36,6 +36,13 @@ public:
   fixed_string_c(fixed_string_c &&) noexcept = default;
   fixed_string_c & operator=(fixed_string_c &&) noexcept = default;
   ~fixed_string_c() = default;
+
+  constexpr fixed_string_c & operator=(
+    const std::string_view value) noexcept
+  {
+    this->assign(value);
+    return *this;
+  }
 
   constexpr void assign(const std::string_view value) noexcept
   {
@@ -100,13 +107,6 @@ public:
     const std::string_view right) noexcept
   {
     return left.view() == right;
-  }
-
-  friend constexpr bool operator==(
-    const std::string_view left,
-    const fixed_string_c & right) noexcept
-  {
-    return left == right.view();
   }
 
 private:

@@ -1,9 +1,12 @@
 #include "presence_detection/camera_node.hpp"
 #include "presence_detection/ipc/camera_ipc_validation.hpp"
+#include "base_core/execution/thread_name.hpp"
 #include "common/ipc/ipc_codec.hpp"
 #include "common/resource_names.hpp"
+#include "logging/log_macros.hpp"
 #include <autonomy_config/autonomy_settings.hpp>
 #include <array>
+#include <cinttypes>
 #include <limits>
 #include <span>
 
@@ -51,8 +54,7 @@ void camera_node_c::step1_allocate_resources(const std::vector<std::string> & ar
   const bool8_t fps_requested =
     m_cap.set(cv::CAP_PROP_FPS, config.get_camera().get_fps());
   if (!width_requested || !height_requested || !fps_requested) {
-    RCLCPP_WARN(
-      this->get_logger(),
+    CORE_LOG_WARN(
       "Camera driver did not accept every requested capture property.");
   }
 
@@ -86,13 +88,13 @@ void camera_node_c::step1_allocate_resources(const std::vector<std::string> & ar
   if (requested_width != initial_frame.cols ||
     requested_height != initial_frame.rows)
   {
-    RCLCPP_WARN(
-      this->get_logger(),
-      "Camera negotiated %dx%d instead of requested %ldx%ld.",
+    CORE_LOG_WARN(
+      "Camera negotiated %dx%d instead of requested %" PRId64
+      "x%" PRId64 ".",
       initial_frame.cols,
       initial_frame.rows,
-      static_cast<long>(requested_width),
-      static_cast<long>(requested_height));
+      requested_width,
+      requested_height);
   }
 
   const std::size_t slot_size =
@@ -109,29 +111,38 @@ void camera_node_c::step1_allocate_resources(const std::vector<std::string> & ar
       descriptor_buffer) !=
     core_ret_e::ok)
   {
-    RCLCPP_WARN(this->get_logger(), "Failed to create anonymous SHM buffer for IPC.");
+    CORE_LOG_WARN(
+      "Failed to create anonymous SHM buffer for IPC.");
   } else {
     if (m_server_sock.bind_and_listen("@presence_detection_ipc") == core_ret_e::ok) {
-      RCLCPP_INFO(this->get_logger(), "IPC Server listening on abstract socket @presence_detection_ipc");
+      CORE_LOG_INFO(
+        "IPC server listening on abstract socket @presence_detection_ipc");
     } else {
-      RCLCPP_WARN(this->get_logger(), "Failed to bind IPC socket on @presence_detection_ipc");
+      CORE_LOG_WARN(
+        "Failed to bind IPC socket on @presence_detection_ipc");
     }
   }
 
   m_running = true;
-  RCLCPP_INFO(this->get_logger(), "step1_allocate_resources complete: Camera and IPC ready.");
+  CORE_LOG_INFO(
+    "step1_allocate_resources complete: camera and IPC ready");
 }
 
 void camera_node_c::accept_thread_loop()
 {
-  RCLCPP_INFO(this->get_logger(), "IPC Acceptor thread waiting for client connection...");
+  base_core::execution::set_current_thread_name("ipc_acceptor");
+  CORE_LOG_INFO(
+    "IPC acceptor thread waiting for a client connection");
   if (m_server_sock.accept_client(m_client_sock) == core_ret_e::ok) {
-    RCLCPP_INFO(this->get_logger(), "IPC Client connected! Sending SHM file descriptor via SCM_RIGHTS...");
+    CORE_LOG_INFO(
+      "IPC client connected; sending SHM descriptor with SCM_RIGHTS");
     if (m_client_sock.send_handshake(m_shm_buf->get_shm_fd()) == core_ret_e::ok) {
       m_client_connected = true;
-      RCLCPP_INFO(this->get_logger(), "SHM file descriptor successfully transmitted to client!");
+      CORE_LOG_INFO(
+        "SHM file descriptor transmitted to IPC client");
     } else {
-      RCLCPP_ERROR(this->get_logger(), "Failed to send SHM fd handshake to client.");
+      CORE_LOG_ERROR(
+        "Failed to send SHM descriptor handshake to IPC client");
     }
   }
 }
@@ -142,13 +153,14 @@ void camera_node_c::step2_start_threads(const std::vector<std::string> & args)
   if (m_shm_buf && m_shm_buf->is_valid() && m_server_sock.is_valid()) {
     m_accept_thread = std::thread(&camera_node_c::accept_thread_loop, this);
   }
-  RCLCPP_INFO(this->get_logger(), "step2_start_threads complete.");
+  CORE_LOG_INFO("step2_start_threads complete");
 }
 
 void camera_node_c::step3_run_forever(const std::vector<std::string> & args)
 {
   (void)args;
-  RCLCPP_INFO(this->get_logger(), "step3_run_forever: Entering main acquisition loop.");
+  CORE_LOG_INFO(
+    "step3_run_forever: entering main acquisition loop");
 
   cv::Mat frame;
   uint32_t slot_idx = 0U;
@@ -157,7 +169,7 @@ void camera_node_c::step3_run_forever(const std::vector<std::string> & args)
     m_cap >> frame;
     
     if (frame.empty()) {
-      RCLCPP_WARN(this->get_logger(), "Captured empty frame, skipping.");
+      CORE_LOG_WARN("Captured empty frame; skipping");
       continue;
     }
 
@@ -168,9 +180,9 @@ void camera_node_c::step3_run_forever(const std::vector<std::string> & args)
           frame,
           descriptor))
       {
-        RCLCPP_ERROR_THROTTLE(
-          this->get_logger(), *this->get_clock(), 5000,
-          "Captured frame does not match the immutable IPC stream descriptor.");
+        CORE_LOG_ERROR_THROTTLE(
+          std::chrono::seconds(5),
+          "Captured frame does not match the immutable IPC stream descriptor");
       } else {
         const common::uint64_t next_sequence = sequence + 1U;
         common::uint32_t claimed_slot = slot_idx;

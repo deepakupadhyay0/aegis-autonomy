@@ -15,6 +15,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(autonomy_config REQUIRED)
 find_package(common REQUIRED)
+find_package(logging REQUIRED)
 
 # This is now a fully compiled SHARED library
 add_library(${PROJECT_NAME} SHARED 
@@ -25,7 +26,17 @@ add_library(${PROJECT_NAME} SHARED
   src/shm_slot.cpp
   src/shm_ring_buffer.cpp
   src/thread_scheduling.cpp
-  src/config_dir.cpp
+  src/thread_name.cpp
+  src/config/runtime_directories.cpp
+)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN YES
+)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+  BASE_CORE_BUILDING_DLL
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -33,11 +44,13 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
-  autonomy_config::autonomy_config
-  common::common
+target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    rclcpp::rclcpp
+    rclcpp_lifecycle::rclcpp_lifecycle
+    autonomy_config::autonomy_config
+    common::common
+    logging::logging_client
 )
 
 install(
@@ -82,6 +95,12 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_targets(export_${PROJECT_NAME})
-ament_export_dependencies(rclcpp rclcpp_lifecycle autonomy_config common)
+ament_export_dependencies(
+  rclcpp
+  rclcpp_lifecycle
+  autonomy_config
+  common
+  logging
+)
 
 ament_package()

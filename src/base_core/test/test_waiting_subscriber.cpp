@@ -61,7 +61,7 @@ TEST_F(waiting_subscriber_test_fixture_c, CreatesDefaultSubscriber)
   std::shared_ptr<waiting_subscriber_t> subscriber =
     base_core::topic::create_waiting_subscriber<message_t>(
     *node,
-    "waiting_subscriber_test_topic",
+    common::string256_t{"waiting_subscriber_test_topic"},
     rclcpp::QoS(1U));
 
   ASSERT_NE(subscriber, nullptr);
@@ -78,7 +78,7 @@ TEST_F(waiting_subscriber_test_fixture_c, CreatesLifecycleSubscriber)
   std::shared_ptr<waiting_subscriber_t> subscriber =
     base_core::topic::create_waiting_subscriber<message_t>(
     *node,
-    "lifecycle_waiting_subscriber_test_topic",
+    common::string256_t{"lifecycle_waiting_subscriber_test_topic"},
     rclcpp::QoS(1U));
 
   ASSERT_NE(subscriber, nullptr);

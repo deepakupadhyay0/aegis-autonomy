@@ -115,7 +115,7 @@ TEST(BaseNodeRunnerTest, ServicesControlPlaneAndStopsCleanly)
   options.node_name = "base_node_runner_test";
 
   const int32_t result =
-    base_core::ros_base_node_c::create_and_execute_class<runner_test_node_c>(
+    base_core::create_and_execute_node<runner_test_node_c>(
     0,
     nullptr,
     options);
@@ -130,8 +130,7 @@ TEST(BaseNodeRunnerTest, SupportsLifecycleNodeBackend)
   options.node_name = "lifecycle_base_node_runner_test";
 
   const int32_t result =
-    base_core::lifecycle_base_node_c::create_and_execute_class<
-    lifecycle_runner_test_node_c>(
+    base_core::create_and_execute_node<lifecycle_runner_test_node_c>(
     0,
     nullptr,
     options);

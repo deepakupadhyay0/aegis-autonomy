@@ -1,8 +1,11 @@
 #pragma once
 
 #include "base_core/base_node.hpp"
+#include "base_core/execution/thread_name.hpp"
+#include "logging/log_macros.hpp"
 
 #include <chrono>
+#include <cinttypes>
 #include <stdexcept>
 
 namespace base_core
@@ -19,6 +22,8 @@ base_node_c<node_t>::base_node_c(const base_node_options_s & options)
   m_executor_thread(),
   m_executor_running(false)
 {
+  execution::set_current_thread_name(this->get_name());
+
   if (options.executor_options.context != m_context) {
     throw std::invalid_argument(
       "base_node_c node and executor contexts must match");
@@ -28,6 +33,10 @@ base_node_c<node_t>::base_node_c(const base_node_options_s & options)
     m_executor.add_node(this->get_node_base_interface());
     m_node_added_to_executor = true;
   }
+
+  logging::logger_c::initialize(
+    this->get_fully_qualified_name(),
+    options.logging_options);
 }
 
 template<typename node_t>
@@ -41,6 +50,7 @@ base_node_c<node_t>::~base_node_c() noexcept
     }
     m_node_added_to_executor = false;
   }
+  logging::logger_c::shutdown();
 }
 
 template<typename node_t>
@@ -60,9 +70,8 @@ void base_node_c<node_t>::execute_base_node(
         throw std::runtime_error(
           "Failed to configure main-thread scheduling");
       }
-      RCLCPP_WARN(
-        this->get_logger(),
-        "Main-thread scheduling was not applied: POSIX error %d",
+      CORE_LOG_WARN(
+        "Main-thread scheduling was not applied: POSIX error %" PRId32,
         scheduling_guard.get_posix_error());
     }
 
@@ -89,6 +98,12 @@ bool8_t base_node_c<node_t>::ok(
 }
 
 template<typename node_t>
+logging::logger_c & base_node_c<node_t>::get_logger() noexcept
+{
+  return logging::logger_c::get_logger();
+}
+
+template<typename node_t>
 void base_node_c<node_t>::start_control_executor()
 {
   if (!m_executor_enabled || m_executor_running.load()) {
@@ -99,14 +114,14 @@ void base_node_c<node_t>::start_control_executor()
   try {
     m_executor_thread = std::thread(
       [this]() {
+        execution::set_current_thread_name("ros_executor");
         try {
           while (m_executor_running.load() && this->ok()) {
             m_executor.spin_once(std::chrono::milliseconds(100));
           }
         } catch (const std::exception & exception) {
           m_executor_running.store(false);
-          RCLCPP_ERROR(
-            this->get_logger(),
+          CORE_LOG_ERROR(
             "Control executor stopped after an exception: %s",
             exception.what());
           try {
@@ -115,8 +130,7 @@ void base_node_c<node_t>::start_control_executor()
           }
         } catch (...) {
           m_executor_running.store(false);
-          RCLCPP_ERROR(
-            this->get_logger(),
+          CORE_LOG_ERROR(
             "Control executor stopped after an unknown exception");
           try {
             m_context->shutdown("unknown control executor exception");
