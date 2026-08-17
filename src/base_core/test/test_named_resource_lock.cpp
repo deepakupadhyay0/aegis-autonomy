@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "base_core/resource/named_resource_lock.hpp"
+#include "base_core/named_resource_lock.hpp"
 
 #include <string>
 #include <unistd.h>

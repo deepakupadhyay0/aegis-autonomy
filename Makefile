@@ -1,10 +1,14 @@
 BUILD_TYPE ?= Debug
+CONAN_STAMP := build/$(BUILD_TYPE)/generators/.conan_deps.stamp
 
 .PHONY: all clean test init conan_deps
 
 # Default target runs colcon build with Ninja generator for maximum speed
-all:
+all: $(CONAN_STAMP)
 	COLCON_DEFAULTS_FILE=colcon_defaults.yaml colcon build --event-handlers console_direct+ --cmake-args -G Ninja -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/build/$(BUILD_TYPE)/generators/conan_toolchain.cmake
+
+$(CONAN_STAMP): conanfile.txt
+	$(MAKE) conan_deps BUILD_TYPE=$(BUILD_TYPE)
 
 # One-time workspace setup (creates venv and installs Python packages, then runs conan_deps)
 init:
@@ -19,6 +23,7 @@ init:
 conan_deps:
 	./.agv_venv/bin/conan profile detect --force
 	./.agv_venv/bin/conan install . --build=missing -s build_type=$(BUILD_TYPE) -u
+	@touch $(CONAN_STAMP)
 
 clean:
 	rm -rf .colcon_cache build install log

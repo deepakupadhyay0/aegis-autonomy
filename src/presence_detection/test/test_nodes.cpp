@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "base_core/base_node.hpp"
+#include "logging/node_logging.hpp"
 #include "presence_detection/camera_node.hpp"
 #include "presence_detection/ipc/camera_ipc_validation.hpp"
 #include "presence_detection/perception_node.hpp"
@@ -22,6 +23,7 @@ base_core::base_node_options_s make_node_options(
 {
   base_core::base_node_options_s options;
   options.node_name = node_name;
+  options.logging = std::make_shared<logging::node_logging_adapter_c>();
   options.enable_executor = false;
   return options;
 }

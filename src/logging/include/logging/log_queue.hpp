@@ -1,12 +1,12 @@
 #pragma once
 
+#include "base_core/bounded_queue.hpp"
 #include "logging/log_types.hpp"
 #include "logging/visibility_control.hpp"
 
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 namespace logging
 {
@@ -47,10 +47,7 @@ private:
   bool try_pop(log_record_s & record) noexcept;
   void unlock_queue() noexcept;
 
-  std::vector<log_record_s> m_storage;
-  std::size_t m_head;
-  std::size_t m_tail;
-  std::size_t m_size;
+  base_core::bounded_queue_c<log_record_s> m_queue;
   const std::size_t m_high_watermark;
   const std::size_t m_low_watermark;
   bool m_pressure_active;

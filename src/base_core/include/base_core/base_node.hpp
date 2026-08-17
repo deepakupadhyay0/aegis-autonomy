@@ -1,9 +1,9 @@
 #pragma once
 
 #include "base_core/execution/thread_scheduling.hpp"
+#include "base_core/node_logging.hpp"
 #include "base_core/visibility_control.hpp"
 #include "common/fixed_string.hpp"
-#include "logging/logger.hpp"
 
 #include <rclcpp/executors/single_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -12,7 +12,9 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <source_location>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -26,6 +28,7 @@ struct base_node_options_s
   rclcpp::NodeOptions node_options;
   rclcpp::ExecutorOptions executor_options;
   execution::thread_scheduling_options_s main_thread_scheduling;
+  std::shared_ptr<observability::node_logging_c> logging;
   bool8_t enable_executor{true};
 };
 
@@ -55,16 +58,20 @@ public:
   bool8_t ok(const rclcpp::Context::SharedPtr & context) const;
 
 protected:
-  static logging::logger_c & get_logger() noexcept;
-
   virtual void step1_allocate_resources(const std::vector<std::string> & args) = 0;
   virtual void step2_start_threads(const std::vector<std::string> & args) = 0;
   virtual void step3_run_forever(const std::vector<std::string> & args) = 0;
 
 private:
+  void report(
+    observability::log_level_e level,
+    std::string_view message,
+    const std::source_location & location =
+    std::source_location::current()) const noexcept;
   void start_control_executor();
   void stop_control_executor() noexcept;
 
+  std::shared_ptr<observability::node_logging_c> m_logging;
   rclcpp::Context::SharedPtr m_context;
   rclcpp::executors::SingleThreadedExecutor m_executor;
   execution::thread_scheduling_options_s m_main_thread_scheduling;
@@ -73,6 +80,7 @@ private:
   /// Services ROS callbacks independently from the main processing loop.
   std::thread m_executor_thread;
   std::atomic<bool8_t> m_executor_running;
+  bool8_t m_logging_initialized;
 };
 
 using ros_base_node_c = base_node_c<rclcpp::Node>;

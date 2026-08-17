@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <ctime>
 #include <stdexcept>
+#include <system_error>
 #include <unistd.h>
 
 namespace base_core
@@ -109,6 +110,33 @@ void mutex_c::unlock() noexcept
   if (result == 0) {
     m_lock_depth.fetch_sub(1U, std::memory_order_relaxed);
   }
+}
+
+timed_mutex_c::timed_mutex_c(
+  const priority_inheritance_e priority_inheritance,
+  const std::chrono::milliseconds acquisition_timeout)
+: mutex_c(priority_inheritance),
+  m_acquisition_timeout(acquisition_timeout)
+{
+  if (m_acquisition_timeout.count() < 0) {
+    throw std::invalid_argument("Timed mutex acquisition timeout cannot be negative");
+  }
+}
+
+void timed_mutex_c::lock()
+{
+  const core_ret_e result = this->timedlock_ms(
+    static_cast<int64_t>(m_acquisition_timeout.count()));
+  if (result == core_ret_e::ok) {
+    return;
+  }
+  if (result == core_ret_e::timeout) {
+    throw std::system_error(
+            ETIMEDOUT,
+            std::generic_category(),
+            "Timed mutex acquisition request expired");
+  }
+  throw std::runtime_error("Timed mutex native lock operation failed");
 }
 
 }  // namespace sync

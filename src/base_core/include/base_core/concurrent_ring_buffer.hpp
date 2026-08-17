@@ -12,8 +12,8 @@
 
 namespace base_core
 {
-namespace topic
-{
+
+using std::chrono_literals::operator""ms;
 
 /// @brief Fixed-capacity thread-safe queue with explicit shutdown behavior.
 template<typename value_t>
@@ -22,12 +22,15 @@ class concurrent_ring_buffer_c
 public:
   using size_type = typename ring_buffer_c<value_t>::size_type;
 
+  static constexpr std::chrono::milliseconds DEFAULT_ACQUISITION_TIMEOUT = 1ms;
+
   explicit concurrent_ring_buffer_c(
     const size_type max_size,
     const base_core::sync::priority_inheritance_e priority_inheritance =
-    base_core::sync::priority_inheritance_e::enabled)
+    base_core::sync::priority_inheritance_e::enabled,
+    const std::chrono::milliseconds acquisition_timeout = DEFAULT_ACQUISITION_TIMEOUT)
   : m_buffer(max_size),
-    m_mutex(priority_inheritance),
+    m_mutex(priority_inheritance, acquisition_timeout),
     m_condition(),
     m_running(true)
   {
@@ -50,19 +53,19 @@ public:
 
   void clear()
   {
-    std::lock_guard<base_core::sync::mutex_c> lock(m_mutex);
+    std::lock_guard<base_core::sync::timed_mutex_c> lock(m_mutex);
     m_buffer.clear();
   }
 
   bool8_t empty() const
   {
-    std::lock_guard<base_core::sync::mutex_c> lock(m_mutex);
+    std::lock_guard<base_core::sync::timed_mutex_c> lock(m_mutex);
     return m_buffer.empty();
   }
 
   size_type size() const
   {
-    std::lock_guard<base_core::sync::mutex_c> lock(m_mutex);
+    std::lock_guard<base_core::sync::timed_mutex_c> lock(m_mutex);
     return m_buffer.size();
   }
 
@@ -83,13 +86,13 @@ public:
 
   std::optional<value_t> pop_front()
   {
-    std::lock_guard<base_core::sync::mutex_c> lock(m_mutex);
+    std::lock_guard<base_core::sync::timed_mutex_c> lock(m_mutex);
     return m_buffer.pop_front();
   }
 
   std::optional<value_t> wait_and_pop_front()
   {
-    std::unique_lock<base_core::sync::mutex_c> lock(m_mutex);
+    std::unique_lock<base_core::sync::timed_mutex_c> lock(m_mutex);
     m_condition.wait(lock, [this]() {
       return !m_buffer.empty() || !m_running.load();
     });
@@ -104,7 +107,7 @@ public:
   std::optional<value_t> wait_and_pop_front_timeout(
     const std::chrono::duration<rep_t, period_t> & timeout)
   {
-    std::unique_lock<base_core::sync::mutex_c> lock(m_mutex);
+    std::unique_lock<base_core::sync::timed_mutex_c> lock(m_mutex);
     const bool8_t awakened = m_condition.wait_for(lock, timeout, [this]() {
       return !m_buffer.empty() || !m_running.load();
     });
@@ -127,7 +130,7 @@ private:
   {
     bool8_t inserted = false;
     {
-      std::lock_guard<base_core::sync::mutex_c> lock(m_mutex);
+      std::lock_guard<base_core::sync::timed_mutex_c> lock(m_mutex);
       if (m_running.load()) {
         inserted = m_buffer.push_back(std::forward<source_t>(value));
       }
@@ -139,10 +142,9 @@ private:
   }
 
   ring_buffer_c<value_t> m_buffer;
-  mutable base_core::sync::mutex_c m_mutex;
+  mutable base_core::sync::timed_mutex_c m_mutex;
   std::condition_variable_any m_condition;
   std::atomic<bool8_t> m_running;
 };
 
-}  // namespace topic
 }  // namespace base_core

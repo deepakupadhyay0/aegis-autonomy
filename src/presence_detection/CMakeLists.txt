@@ -3,6 +3,7 @@ project(presence_detection)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(
   $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wall>
@@ -127,7 +128,15 @@ install(DIRECTORY models/
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_clang_tidy REQUIRED)
+  find_package(ament_cmake_cppcheck REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_uncrustify REQUIRED)
+
+  ament_clang_tidy(${CMAKE_BINARY_DIR})
+  ament_cppcheck()
+  ament_uncrustify()
+
   ament_add_gtest(test_nodes test/test_nodes.cpp)
   target_link_libraries(test_nodes camera_node perception_node)
   ament_target_dependencies(test_nodes ${COMMON_DEPS} autonomy_config autonomy_msgs ament_index_cpp)

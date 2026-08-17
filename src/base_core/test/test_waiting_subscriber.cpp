@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "base_core/topic/create_waiting_subscriber.hpp"
+#include "base_core/create_waiting_subscriber.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>

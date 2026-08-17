@@ -1,6 +1,5 @@
 #include "logging/log_queue.hpp"
 
-#include <stdexcept>
 #include <thread>
 #include <utility>
 
@@ -8,10 +7,7 @@ namespace logging
 {
 
 log_queue_c::log_queue_c(const std::size_t capacity)
-: m_storage(capacity),
-  m_head(0U),
-  m_tail(0U),
-  m_size(0U),
+: m_queue(capacity),
   m_high_watermark(capacity - (capacity / 10U)),
   m_low_watermark(capacity / 2U),
   m_pressure_active(false),
@@ -26,9 +22,6 @@ log_queue_c::log_queue_c(const std::size_t capacity)
   m_pressure_requested(false),
   m_running(true)
 {
-  if (capacity == 0U) {
-    throw std::invalid_argument("Log queue capacity must be positive");
-  }
 }
 
 log_queue_c::~log_queue_c() noexcept
@@ -54,23 +47,20 @@ bool log_queue_c::try_push(
     return false;
   }
 
-  const std::size_t capacity = m_storage.size();
-  if (m_size == capacity) {
+  if (!m_queue.try_push(std::move(record))) {
     this->unlock_queue();
     m_dropped_capacity_count.fetch_add(1U, std::memory_order_relaxed);
     return false;
   }
 
-  m_storage[m_tail] = std::move(record);
-  m_tail = (m_tail + 1U) % capacity;
-  ++m_size;
-  const uint64_t occupancy = static_cast<uint64_t>(m_size);
+  const std::size_t queue_size = m_queue.size();
+  const uint64_t occupancy = static_cast<uint64_t>(queue_size);
   m_occupancy.store(occupancy, std::memory_order_release);
   if (m_peak_occupancy.load(std::memory_order_relaxed) < occupancy) {
     // The queue flag serializes all producers, so peak has a single writer.
     m_peak_occupancy.store(occupancy, std::memory_order_relaxed);
   }
-  if (!m_pressure_active && m_size >= m_high_watermark) {
+  if (!m_pressure_active && queue_size >= m_high_watermark) {
     m_pressure_active = true;
     m_pressure_requested.store(true, std::memory_order_release);
     m_pressure_event_count.fetch_add(1U, std::memory_order_relaxed);
@@ -90,19 +80,16 @@ bool log_queue_c::try_pop(
     std::this_thread::yield();
   }
 
-  if (m_size == 0U) {
+  if (!m_queue.try_pop(record)) {
     this->unlock_queue();
     return false;
   }
 
-  record = std::move(m_storage[m_head]);
-  m_storage[m_head] = log_record_s{};
-  m_head = (m_head + 1U) % m_storage.size();
-  --m_size;
+  const std::size_t queue_size = m_queue.size();
   m_occupancy.store(
-    static_cast<uint64_t>(m_size),
+    static_cast<uint64_t>(queue_size),
     std::memory_order_release);
-  if (m_pressure_active && m_size <= m_low_watermark) {
+  if (m_pressure_active && queue_size <= m_low_watermark) {
     m_pressure_active = false;
   }
   this->unlock_queue();
@@ -143,7 +130,7 @@ uint64_t log_queue_c::get_dropped_record_count() const noexcept
 log_queue_statistics_s log_queue_c::get_statistics() const noexcept
 {
   log_queue_statistics_s statistics;
-  statistics.capacity = static_cast<uint64_t>(m_storage.size());
+  statistics.capacity = static_cast<uint64_t>(m_queue.capacity());
   statistics.occupancy = m_occupancy.load(std::memory_order_acquire);
   statistics.peak_occupancy =
     m_peak_occupancy.load(std::memory_order_relaxed);

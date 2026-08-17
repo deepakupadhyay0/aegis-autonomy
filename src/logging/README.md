@@ -1,7 +1,10 @@
 # Logging
 
 The `logging::logging` library provides bounded process-local asynchronous
-logging initialized by `base_core::base_node_c`.
+logging. An executable enables it by injecting
+`logging::node_logging_adapter_c` through `base_core::base_node_options_s`.
+`base_core` depends only on the logging interface and remains usable without
+the concrete logging package.
 
 The calling thread formats only fixed-capacity metadata and attempts a
 non-blocking push into the process queue. A single `SCHED_OTHER`, low-priority

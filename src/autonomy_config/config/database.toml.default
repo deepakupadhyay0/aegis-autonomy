@@ -1,0 +1,7 @@
+# Default asynchronous SQLite persistence configuration.
+
+database_path = "data/aegis_autonomy.db"
+queue_capacity = 256
+batch_size = 32
+busy_timeout_ms = 50
+max_write_retries = 2

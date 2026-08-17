@@ -3,6 +3,7 @@ project(autonomy_config)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(
   $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wall>
@@ -17,7 +18,12 @@ find_package(tomlplusplus CONFIG REQUIRED)
 set(TOML_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/scripts/toml2cpp.py")
 set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
-file(GLOB TOML_SCHEMAS "${CMAKE_CURRENT_SOURCE_DIR}/config/*.toml.default")
+set(TOML_SCHEMAS
+  "${CMAKE_CURRENT_SOURCE_DIR}/config/ai_diagnostics.toml.default"
+  "${CMAKE_CURRENT_SOURCE_DIR}/config/database.toml.default"
+  "${CMAKE_CURRENT_SOURCE_DIR}/config/logging.toml.default"
+  "${CMAKE_CURRENT_SOURCE_DIR}/config/presence_detection.toml.default"
+)
 set(GENERATED_SOURCES "")
 foreach(SCHEMA_FILE ${TOML_SCHEMAS})
   string(REGEX REPLACE "\\.toml\\.default$" "" BARE_PATH "${SCHEMA_FILE}")
@@ -81,7 +87,15 @@ install(
 )
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_clang_tidy REQUIRED)
+  find_package(ament_cmake_cppcheck REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_uncrustify REQUIRED)
+
+  ament_clang_tidy(${CMAKE_BINARY_DIR})
+  ament_cppcheck()
+  ament_uncrustify()
+
   ament_add_gtest(test_config test/test_config.cpp)
   target_link_libraries(test_config ${PROJECT_NAME})
 endif()

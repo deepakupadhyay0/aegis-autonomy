@@ -12,3 +12,6 @@ __pycache__/
 
 # AI Models (Dynamically downloaded by CMake)
 src/presence_detection/models/
+
+# Misc
+.clang-tidy

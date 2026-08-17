@@ -14,19 +14,13 @@
 #include <string_view>
 #include <utility>
 
-namespace base_core
-{
-template<typename node_t>
-class base_node_c;
-}
-
 namespace logging
 {
 
 class abstract_log_backend_c;
+class node_logging_adapter_c;
 
-/// Process-local logger facade. base_node_c initializes it before derived-node
-/// construction and shuts it down only after application workers have stopped.
+/// Process-local logger facade initialized through node_logging_adapter_c.
 /// get_logger() performs no synchronization on the logging hot path.
 class LOGGING_PUBLIC logger_c final
 {
@@ -124,8 +118,7 @@ private:
     shutting_down
   };
 
-  template<typename node_t>
-  friend class ::base_core::base_node_c;
+  friend class node_logging_adapter_c;
 
   static void initialize(
     std::string_view node_name);

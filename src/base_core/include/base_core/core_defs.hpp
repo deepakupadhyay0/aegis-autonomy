@@ -48,7 +48,7 @@ enum class core_ret_e : common::int32_t {
 
 #define OBJ_EXISTS_INDICATOR (0x15U)
 
-using bool8_t = bool;
+using bool8_t = common::bool8_t;
 using float32_t = common::float32_t;
 using float64_t = common::float64_t;
 

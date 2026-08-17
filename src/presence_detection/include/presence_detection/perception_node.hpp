@@ -53,7 +53,8 @@ private:
   
   std::thread m_ai_thread;
   std::atomic<bool> m_running;
-  std::unique_ptr<base_core::topic::concurrent_ring_buffer_c<cv::Mat>> m_frame_queue;
+  std::unique_ptr<
+    base_core::concurrent_ring_buffer_c<cv::Mat>> m_frame_queue;
 
   std::unique_ptr<base_core::ipc::shm_ring_buffer_c> m_shm_buf;
   common::ipc::stream_descriptor_s m_stream_descriptor;

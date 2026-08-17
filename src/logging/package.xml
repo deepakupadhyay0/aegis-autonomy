@@ -10,12 +10,16 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>autonomy_config</depend>
+  <depend>base_core</depend>
   <depend>common</depend>
   <depend>diagnostic_msgs</depend>
   <depend>rclcpp</depend>
   <depend>spdlog</depend>
 
+  <test_depend>ament_cmake_clang_tidy</test_depend>
+  <test_depend>ament_cmake_cppcheck</test_depend>
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_uncrustify</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

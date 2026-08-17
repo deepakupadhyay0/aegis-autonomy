@@ -2,10 +2,11 @@
 
 #include "base_core/base_node.hpp"
 #include "base_core/execution/thread_name.hpp"
-#include "logging/log_macros.hpp"
 
+#include <array>
 #include <chrono>
 #include <cinttypes>
+#include <cstdio>
 #include <stdexcept>
 
 namespace base_core
@@ -14,13 +15,15 @@ namespace base_core
 template<typename node_t>
 base_node_c<node_t>::base_node_c(const base_node_options_s & options)
 : node_t(std::string(options.node_name.view()), options.node_options),
+  m_logging(options.logging),
   m_context(this->get_node_base_interface()->get_context()),
   m_executor(options.executor_options),
   m_main_thread_scheduling(options.main_thread_scheduling),
   m_executor_enabled(options.enable_executor),
   m_node_added_to_executor(false),
   m_executor_thread(),
-  m_executor_running(false)
+  m_executor_running(false),
+  m_logging_initialized(false)
 {
   execution::set_current_thread_name(this->get_name());
 
@@ -34,7 +37,10 @@ base_node_c<node_t>::base_node_c(const base_node_options_s & options)
     m_node_added_to_executor = true;
   }
 
-  logging::logger_c::initialize(this->get_fully_qualified_name());
+  if (m_logging != nullptr) {
+    m_logging->initialize(this->get_fully_qualified_name());
+    m_logging_initialized = true;
+  }
 }
 
 template<typename node_t>
@@ -48,7 +54,10 @@ base_node_c<node_t>::~base_node_c() noexcept
     }
     m_node_added_to_executor = false;
   }
-  logging::logger_c::shutdown();
+  if (m_logging_initialized && m_logging != nullptr) {
+    m_logging->shutdown();
+    m_logging_initialized = false;
+  }
 }
 
 template<typename node_t>
@@ -68,9 +77,20 @@ void base_node_c<node_t>::execute_base_node(
         throw std::runtime_error(
           "Failed to configure main-thread scheduling");
       }
-      CORE_LOG_WARN(
-        "Main-thread scheduling was not applied: POSIX error %" PRId32,
-        scheduling_guard.get_posix_error());
+      std::array<char, 128U> message{};
+      const int32_t message_size = static_cast<int32_t>(std::snprintf(
+          message.data(),
+          message.size(),
+          "Main-thread scheduling was not applied: POSIX error %" PRId32,
+          scheduling_guard.get_posix_error()));
+      if (message_size > 0) {
+        this->report(
+          observability::log_level_e::warning,
+          std::string_view(
+            message.data(),
+            static_cast<std::size_t>(message_size) < message.size() ?
+            static_cast<std::size_t>(message_size) : message.size() - 1U));
+      }
     }
 
     this->step3_run_forever(args);
@@ -96,12 +116,6 @@ bool8_t base_node_c<node_t>::ok(
 }
 
 template<typename node_t>
-logging::logger_c & base_node_c<node_t>::get_logger() noexcept
-{
-  return logging::logger_c::get_logger();
-}
-
-template<typename node_t>
 void base_node_c<node_t>::start_control_executor()
 {
   if (!m_executor_enabled || m_executor_running.load()) {
@@ -119,16 +133,28 @@ void base_node_c<node_t>::start_control_executor()
           }
         } catch (const std::exception & exception) {
           m_executor_running.store(false);
-          CORE_LOG_ERROR(
-            "Control executor stopped after an exception: %s",
-            exception.what());
+          std::array<char, 256U> message{};
+          const int32_t message_size = static_cast<int32_t>(std::snprintf(
+              message.data(),
+              message.size(),
+              "Control executor stopped after an exception: %s",
+              exception.what()));
+          if (message_size > 0) {
+            this->report(
+              observability::log_level_e::error,
+              std::string_view(
+                message.data(),
+                static_cast<std::size_t>(message_size) < message.size() ?
+                static_cast<std::size_t>(message_size) : message.size() - 1U));
+          }
           try {
             m_context->shutdown("control executor exception");
           } catch (...) {
           }
         } catch (...) {
           m_executor_running.store(false);
-          CORE_LOG_ERROR(
+          this->report(
+            observability::log_level_e::error,
             "Control executor stopped after an unknown exception");
           try {
             m_context->shutdown("unknown control executor exception");
@@ -158,6 +184,24 @@ void base_node_c<node_t>::stop_control_executor() noexcept
   if (m_executor_thread.joinable()) {
     m_executor_thread.join();
   }
+}
+
+template<typename node_t>
+void base_node_c<node_t>::report(
+  const observability::log_level_e level,
+  const std::string_view message,
+  const std::source_location & location) const noexcept
+{
+  if (m_logging_initialized && m_logging != nullptr) {
+    m_logging->write(level, message, location);
+    return;
+  }
+
+  static_cast<void>(std::fprintf(
+      stderr,
+      "%.*s\n",
+      static_cast<int32_t>(message.size()),
+      message.data()));
 }
 
 }  // namespace base_core

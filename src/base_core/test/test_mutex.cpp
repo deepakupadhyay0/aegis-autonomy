@@ -2,7 +2,9 @@
 
 #include "base_core/mutex.hpp"
 
+#include <cerrno>
 #include <chrono>
+#include <system_error>
 #include <thread>
 
 TEST(MutexTest, TracksNativeLockState)
@@ -31,5 +33,28 @@ TEST(MutexTest, TimedLockReportsTimeout)
   contender.join();
 
   EXPECT_EQ(result, core_ret_e::timeout);
+  mutex.unlock();
+}
+
+TEST(TimedMutexTest, ThrowsWhenCurrentAcquisitionRequestTimesOut)
+{
+  using namespace std::chrono_literals;
+
+  base_core::sync::timed_mutex_c mutex(
+    base_core::sync::priority_inheritance_e::disabled,
+    1ms);
+  mutex.lock();
+
+  std::error_code contender_error;
+  std::thread contender([&mutex, &contender_error]() {
+    try {
+      mutex.lock();
+    } catch (const std::system_error & error) {
+      contender_error = error.code();
+    }
+  });
+  contender.join();
+
+  EXPECT_EQ(contender_error.value(), ETIMEDOUT);
   mutex.unlock();
 }

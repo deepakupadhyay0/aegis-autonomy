@@ -1,0 +1,17 @@
+# Experimental, advisory-only AI diagnostics.
+
+enabled = false
+input_topic = "/diagnostics"
+report_topic = "/ai_diagnostics/report"
+queue_capacity = 64
+
+cpu_threshold_percent = 35.0
+idle_samples_required = 5
+sample_interval_ms = 1000
+analysis_cooldown_ms = 30000
+
+request_timeout_ms = 10000
+maximum_response_bytes = 65536
+endpoint = ""
+model = ""
+api_key_env = "AEGIS_AUTONOMY_LLM_API_KEY"

@@ -7,8 +7,6 @@
 
 namespace base_core
 {
-namespace topic
-{
 
 /// @brief Fixed-capacity O(1) ring buffer that overwrites the oldest item when full.
 /// Not thread-safe (use concurrent_ring_buffer_c for callbacks).
@@ -104,5 +102,4 @@ private:
   size_type m_tail;
 };
 
-}  // namespace topic
 }  // namespace base_core

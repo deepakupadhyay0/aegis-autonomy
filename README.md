@@ -15,25 +15,35 @@ distrobox enter agv_jazzy
 
 ## 2. Dependency Initialization
 
-Once inside the container, you must install the core system dependencies (like Ninja, Python Virtual Environments, OpenCV data, and CUDA libraries).
+The OSRF image provides ROS 2 Jazzy and exports `ROS_DISTRO=jazzy`. You do not
+need to set `ROS_DISTRO` manually. The setup script validates this variable to
+prevent it from being run on the host or in the wrong container.
 
-Run the automated setup script from the root of the workspace to configure system dependencies, fetch the NVIDIA Container Toolkit GPG key, and install CUDA libraries:
+Run the setup script from the repository root to install system dependencies,
+ROS tooling not included in the base image, and CUDA libraries:
 
 ```bash
 bash setup_distrobox.sh
 ```
 
-Next, initialize the local Python virtual environment and download all Conan C++ dependencies (TOML++, Eigen):
+Dependency ownership is intentionally split as follows:
+
+- The OSRF image provides ROS 2 and its standard packages.
+- APT provides system libraries, CUDA, and missing ROS development tools.
+- Conan provides portable C++ libraries: TOML++, Eigen, libcurl, and
+  nlohmann JSON.
+
+Next, initialize the local Python virtual environment and install the Conan
+C++ dependencies:
 
 ```bash
 make init
 ```
 
 > [!NOTE]
-> Whenever you modify [conanfile.txt](file:///home/cadmus/ros2_ws/robot_autonomy/conanfile.txt) (e.g., adding a new C++ library or changing versions), you do not need to rerun `make init`. Simply run:
-> ```bash
-> make conan_deps
-> ```
+> The default `make` target refreshes Conan dependencies automatically whenever
+> `conanfile.txt` changes. Use `make conan_deps` only when you want to refresh
+> them explicitly without building the workspace.
 
 ## 3. Downloading AI Models & Building the Workspace
 
@@ -84,10 +94,10 @@ It will automatically detect when you enter the ROS 2 Distrobox container, sourc
 if [ -f "/run/.containerenv" ]; then
     # We are inside a distrobox container
     export PS1="📦[\[\033[01;36m\]${CONTAINER_ID}\[\033[00m\]] $PS1"
-    if [ -f "/opt/ros/jazzy/setup.bash" ]; then
-        source /opt/ros/jazzy/setup.bash
-        if [ -f "$HOME/ros2_ws/install/setup.bash" ]; then
-            source "$HOME/ros2_ws/install/setup.bash"
+    if [ -n "${ROS_DISTRO:-}" ] && [ -f "/opt/ros/${ROS_DISTRO}/setup.bash" ]; then
+        source "/opt/ros/${ROS_DISTRO}/setup.bash"
+        if [ -f "$HOME/ros2_ws/robot_autonomy/.colcon_cache/install/setup.bash" ]; then
+            source "$HOME/ros2_ws/robot_autonomy/.colcon_cache/install/setup.bash"
         fi
     fi
 fi

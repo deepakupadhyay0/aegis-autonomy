@@ -3,6 +3,7 @@ project(logging)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(
   $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:-Wall>
@@ -12,6 +13,7 @@ add_compile_options(
 
 find_package(ament_cmake REQUIRED)
 find_package(autonomy_config REQUIRED)
+find_package(base_core REQUIRED)
 find_package(common REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(Git QUIET)
@@ -92,6 +94,7 @@ add_library(${PROJECT_NAME} SHARED
   src/log_queue.cpp
   src/logging_config.cpp
   src/logger.cpp
+  src/node_logging.cpp
   src/node_log_sink.cpp
 )
 add_library(logging::logging ALIAS ${PROJECT_NAME})
@@ -116,6 +119,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 target_link_libraries(${PROJECT_NAME}
   autonomy_config::autonomy_config
+  base_core::base_core
   common::common
   spdlog::spdlog
   Threads::Threads
@@ -133,7 +137,15 @@ install(
   INCLUDES DESTINATION include
 )
 if(BUILD_TESTING)
+  find_package(ament_cmake_clang_tidy REQUIRED)
+  find_package(ament_cmake_cppcheck REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_uncrustify REQUIRED)
+
+  ament_clang_tidy(${CMAKE_BINARY_DIR})
+  ament_cppcheck()
+  ament_uncrustify()
+
   ament_add_gtest(test_log_backend test/test_log_backend.cpp)
   target_link_libraries(test_log_backend ${PROJECT_NAME})
   ament_add_gtest(test_log_queue test/test_log_queue.cpp)
@@ -147,6 +159,7 @@ ament_export_targets(
 )
 ament_export_dependencies(
   common
+  base_core
   autonomy_config
   diagnostic_msgs
   rclcpp

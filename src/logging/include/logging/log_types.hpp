@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base_core/node_logging.hpp"
 #include "common/fixed_string.hpp"
 #include "common/numeric_types.hpp"
 
@@ -10,14 +11,7 @@ namespace logging
 
 inline constexpr common::uint32_t DEFAULT_LOG_QUEUE_CAPACITY = 4096U;
 
-enum class log_level_e : common::uint8_t
-{
-  debug = 0U,
-  info,
-  warning,
-  error,
-  fatal
-};
+using log_level_e = base_core::observability::log_level_e;
 
 struct log_record_s
 {

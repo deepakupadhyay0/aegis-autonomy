@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 
 #include "base_core/core_defs.hpp"
@@ -46,6 +47,27 @@ private:
   std::atomic<uint32_t> m_lock_depth;
   bool8_t m_attributes_initialized;
   bool8_t m_mutex_initialized;
+};
+
+/// @brief Mutex extension that bounds each lock acquisition request.
+class BASE_CORE_PUBLIC timed_mutex_c final : public mutex_c
+{
+public:
+  timed_mutex_c(
+    priority_inheritance_e priority_inheritance,
+    std::chrono::milliseconds acquisition_timeout);
+
+  timed_mutex_c(const timed_mutex_c &) = delete;
+  timed_mutex_c & operator=(const timed_mutex_c &) = delete;
+  timed_mutex_c(timed_mutex_c &&) = delete;
+  timed_mutex_c & operator=(timed_mutex_c &&) = delete;
+
+  /// @throws std::system_error when the acquisition request times out.
+  /// @throws std::runtime_error when the native lock operation fails.
+  void lock();
+
+private:
+  const std::chrono::milliseconds m_acquisition_timeout;
 };
 
 }  // namespace sync

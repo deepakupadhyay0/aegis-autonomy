@@ -11,7 +11,7 @@
 
 TEST(ConcurrentRingBufferTest, BasicPushPop)
 {
-  base_core::topic::concurrent_ring_buffer_c<int32_t> buffer(3);
+  base_core::concurrent_ring_buffer_c<int32_t> buffer(3);
   EXPECT_TRUE(buffer.empty());
   EXPECT_EQ(buffer.size(), 0U);
   EXPECT_EQ(buffer.capacity(), 3U);
@@ -34,7 +34,7 @@ TEST(ConcurrentRingBufferTest, BasicPushPop)
 
 TEST(ConcurrentRingBufferTest, OverflowHandling)
 {
-  base_core::topic::concurrent_ring_buffer_c<int32_t> buffer(2);
+  base_core::concurrent_ring_buffer_c<int32_t> buffer(2);
   EXPECT_TRUE(buffer.push_back(1));
   EXPECT_TRUE(buffer.push_back(2));
   EXPECT_EQ(buffer.size(), 2U);
@@ -52,7 +52,7 @@ TEST(ConcurrentRingBufferTest, OverflowHandling)
 
 TEST(ConcurrentRingBufferTest, MultithreadedWaitAndPop)
 {
-  base_core::topic::concurrent_ring_buffer_c<int32_t> buffer(5);
+  base_core::concurrent_ring_buffer_c<int32_t> buffer(5);
   std::atomic<bool> running{true};
   std::vector<int32_t> consumed_values;
 
@@ -83,7 +83,7 @@ TEST(ConcurrentRingBufferTest, MultithreadedWaitAndPop)
 
 TEST(ConcurrentRingBufferTest, ReleasesConsumedResources)
 {
-  base_core::topic::concurrent_ring_buffer_c<std::shared_ptr<int32_t>> buffer(1U);
+  base_core::concurrent_ring_buffer_c<std::shared_ptr<int32_t>> buffer(1U);
   std::shared_ptr<int32_t> value = std::make_shared<int32_t>(42);
   std::weak_ptr<int32_t> observer = value;
 
@@ -99,7 +99,7 @@ TEST(ConcurrentRingBufferTest, ReleasesConsumedResources)
 
 TEST(ConcurrentRingBufferTest, ClearReleasesQueuedResources)
 {
-  base_core::topic::concurrent_ring_buffer_c<std::shared_ptr<int32_t>> buffer(1U);
+  base_core::concurrent_ring_buffer_c<std::shared_ptr<int32_t>> buffer(1U);
   std::shared_ptr<int32_t> value = std::make_shared<int32_t>(42);
   std::weak_ptr<int32_t> observer = value;
 

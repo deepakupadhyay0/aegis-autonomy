@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include "autonomy_config/ai_diagnostics.hpp"
+#include "autonomy_config/database.hpp"
 #include "autonomy_config/logging.hpp"
 #include "autonomy_config/presence_detection.hpp"
 
@@ -47,6 +49,35 @@ TEST(GeneratedConfigTest, LoggingDefaultsVerification)
   EXPECT_GT(logging.get_max_files(), 0);
   EXPECT_TRUE(logging.get_diagnostics_enabled());
   EXPECT_GT(logging.get_diagnostics_interval_ms(), 0);
+}
+
+TEST(GeneratedConfigTest, DatabaseDefaultsVerification)
+{
+  const autonomy_config::Database & database =
+    autonomy_config::Database::get_compile_time_values();
+
+  EXPECT_FALSE(database.get_database_path().empty());
+  EXPECT_GT(database.get_queue_capacity(), 0);
+  EXPECT_GT(database.get_batch_size(), 0);
+  EXPECT_LE(database.get_batch_size(), database.get_queue_capacity());
+  EXPECT_GT(database.get_busy_timeout_ms(), 0);
+  EXPECT_GE(database.get_max_write_retries(), 0);
+}
+
+TEST(GeneratedConfigTest, AiDiagnosticsDefaultsVerification)
+{
+  const autonomy_config::AiDiagnostics & diagnostics =
+    autonomy_config::AiDiagnostics::get_compile_time_values();
+
+  EXPECT_FALSE(diagnostics.get_enabled());
+  EXPECT_FALSE(diagnostics.get_input_topic().empty());
+  EXPECT_FALSE(diagnostics.get_report_topic().empty());
+  EXPECT_GT(diagnostics.get_queue_capacity(), 0);
+  EXPECT_GE(diagnostics.get_cpu_threshold_percent(), 0.0);
+  EXPECT_LE(diagnostics.get_cpu_threshold_percent(), 100.0);
+  EXPECT_GT(diagnostics.get_idle_samples_required(), 0);
+  EXPECT_GT(diagnostics.get_request_timeout_ms(), 0);
+  EXPECT_GT(diagnostics.get_maximum_response_bytes(), 0);
 }
 
 int main(int argc, char ** argv)

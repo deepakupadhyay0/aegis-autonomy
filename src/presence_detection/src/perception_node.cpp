@@ -75,7 +75,8 @@ void perception_node_c::step1_allocate_resources(const std::vector<std::string> 
       e.what());
   }
 
-  m_frame_queue = std::make_unique<base_core::topic::concurrent_ring_buffer_c<cv::Mat>>(2);
+  m_frame_queue =
+    std::make_unique<base_core::concurrent_ring_buffer_c<cv::Mat>>(2);
 
   if (m_client_sock.connect_to_server("@presence_detection_ipc") == core_ret_e::ok) {
     CORE_LOG_INFO(

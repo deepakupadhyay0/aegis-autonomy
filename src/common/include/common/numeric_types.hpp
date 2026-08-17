@@ -7,6 +7,8 @@
 namespace common
 {
 
+using bool8_t = bool;
+
 using int8_t = std::int8_t;
 using int16_t = std::int16_t;
 using int32_t = std::int32_t;
