@@ -14,8 +14,6 @@ struct exit_notification_s
 
 /// @brief Creates a process-wide self-pipe for graceful exit notifications.
 /// @return The process-lifetime pipe read descriptor.
-/// @throws std::logic_error when an exit handler is already registered.
-/// @note Handles SIGINT, SIGTERM, and SIGHUP.
 [[nodiscard]] int32_t register_exit_handler();
 
 }  // namespace process

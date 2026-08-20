@@ -20,8 +20,6 @@ concept integer_type =
 
 namespace add
 {
-
-/// @brief Checks signed addition without evaluating the potentially unsafe sum.
 template<signed_integer_type value_t>
 constexpr bool will_overflow(const value_t left, const value_t right) noexcept
 {
@@ -46,8 +44,6 @@ constexpr bool will_wrap(const value_t left, const value_t right) noexcept
 
 namespace sub
 {
-
-/// @brief Checks signed subtraction without evaluating the potentially unsafe difference.
 template<signed_integer_type value_t>
 constexpr bool will_overflow(const value_t left, const value_t right) noexcept
 {
@@ -72,8 +68,6 @@ constexpr bool will_wrap(const value_t left, const value_t right) noexcept
 
 namespace mul
 {
-
-/// @brief Checks whether an integer product would exceed its maximum value.
 template<integer_type value_t>
 constexpr bool will_overflow(const value_t left, const value_t right) noexcept
 {

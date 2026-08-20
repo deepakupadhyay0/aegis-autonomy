@@ -155,9 +155,7 @@ constexpr int64_t ticks_from_seconds_nanoseconds(
 
 }  // namespace detail
 
-/// @brief Signed nanosecond duration with deterministic saturating arithmetic.
-/// @details INT64_MIN is reserved as invalid. Invalid operands propagate and
-/// arithmetic overflow saturates to min() or max(); operations never wrap.
+// Signed nanosecond duration with deterministic saturating arithmetic.
 class duration_c final
 {
 public:
@@ -353,10 +351,7 @@ private:
   int64_t m_ticks{0LL};
 };
 
-/// @brief Nanosecond time point whose clock domain is enforced at compile time.
-/// @details Time arithmetic has the same invalid propagation and saturation
-/// semantics as duration_c. Different clock domains cannot be compared or
-/// subtracted accidentally.
+// Nanosecond time point whose clock domain is enforced at compile time.
 template<clock_e clock_v>
 class basic_time_c final
 {
@@ -486,10 +481,7 @@ using system_time_c = basic_time_c<clock_e::system>;
 using steady_time_c = basic_time_c<clock_e::steady>;
 using ros_time_c = basic_time_c<clock_e::ros>;
 
-/// @brief Reads CLOCK_REALTIME. Returns invalid when the native clock fails.
 system_time_c system_now() noexcept;
-
-/// @brief Reads CLOCK_MONOTONIC. Returns invalid when the native clock fails.
 steady_time_c steady_now() noexcept;
 
 static_assert(sizeof(duration_c) == sizeof(int64_t));

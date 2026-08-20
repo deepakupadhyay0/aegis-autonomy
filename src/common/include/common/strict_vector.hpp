@@ -16,7 +16,6 @@ namespace common
 {
 
 /// @brief Runtime-capacity vector that allocates its element storage once.
-///
 /// The supplied resource is borrowed and must outlive this vector. Allocations
 /// performed internally by value_t are covered only when value_t also uses the
 /// same bounded resource.
