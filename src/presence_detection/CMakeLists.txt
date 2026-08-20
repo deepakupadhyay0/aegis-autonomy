@@ -16,7 +16,9 @@ message(STATUS "Checking and downloading AI models...")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "scripts/download_models.py" "scripts/models.json")
 
 execute_process(
-  COMMAND python3 scripts/download_models.py
+  COMMAND
+    ${CMAKE_COMMAND} -E env PYTHONUNBUFFERED=1
+    python3 -u scripts/download_models.py
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   RESULT_VARIABLE DOWNLOAD_RESULT
 )

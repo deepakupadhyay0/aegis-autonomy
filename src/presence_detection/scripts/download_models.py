@@ -10,16 +10,26 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', str
 def with_progress(func):
     """Decorator to inject a stateful progress hook into the download function."""
     def wrapper(url, output_path, **kwargs):
-        last_percent = -1
+        last_reported_percent = -10
+
         def progress_hook(count, block_size, total_size):
-            nonlocal last_percent
+            nonlocal last_reported_percent
             if total_size > 0:
-                percent = int(count * block_size * 100 / total_size)
+                downloaded_size = min(count * block_size, total_size)
+                percent = int(downloaded_size * 100 / total_size)
                 percent = min(100, percent)
-                if percent // 20 > last_percent // 20:
-                    if 0 < percent < 100:
-                        logging.info(f"Downloading... {percent}%")
-                    last_percent = percent
+                report_percent = min(100, (percent // 10) * 10)
+                if report_percent > last_reported_percent:
+                    downloaded_mib = downloaded_size / (1024 * 1024)
+                    total_mib = total_size / (1024 * 1024)
+                    logging.info(
+                        "Download progress: %3d%% (%.1f / %.1f MiB)",
+                        report_percent,
+                        downloaded_mib,
+                        total_mib,
+                    )
+                    last_reported_percent = report_percent
+
         return func(url, output_path, reporthook=progress_hook, **kwargs)
     return wrapper
 
