@@ -60,16 +60,19 @@ make
 ```
 
 You can also specify a release build type:
+
 ```bash
 make BUILD_TYPE=Release
 ```
 
 To run workspace unit tests, run:
+
 ```bash
 make test
 ```
 
 To clean the build artifacts, run:
+
 ```bash
 make clean
 ```
