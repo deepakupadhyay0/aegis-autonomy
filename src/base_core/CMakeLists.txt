@@ -19,6 +19,7 @@ find_package(common REQUIRED)
 
 # This is now a fully compiled SHARED library
 add_library(${PROJECT_NAME} SHARED 
+  src/background_executor.cpp
   src/mutex.cpp
   src/ipc_socket.cpp
   src/named_resource_lock.cpp
@@ -83,6 +84,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_buffers ${PROJECT_NAME})
   ament_add_gtest(test_bounded_queue test/test_bounded_queue.cpp)
   target_link_libraries(test_bounded_queue ${PROJECT_NAME})
+  ament_add_gtest(test_background_executor test/test_background_executor.cpp)
+  target_link_libraries(test_background_executor ${PROJECT_NAME})
   ament_add_gtest(test_mutex test/test_mutex.cpp)
   target_link_libraries(test_mutex ${PROJECT_NAME})
   ament_add_gtest(test_named_resource_lock test/test_named_resource_lock.cpp)
