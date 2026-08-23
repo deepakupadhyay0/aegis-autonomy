@@ -17,7 +17,7 @@ void log_macro_message(
   logger_c & logger,
   const log_level_e level,
   const std::source_location & location,
-  const char (&message)[message_size_v]) noexcept
+  const char (& message)[message_size_v]) noexcept
 {
   static_assert(message_size_v > 0U, "Log message must include a terminator");
   static_assert(
@@ -46,7 +46,7 @@ void log_macro_message(
   logger_c & logger,
   const log_level_e level,
   const std::source_location & location,
-  const char (&format)[format_size_v],
+  const char (& format)[format_size_v],
   argument_ts && ... arguments) noexcept
 {
   logger.log_format(

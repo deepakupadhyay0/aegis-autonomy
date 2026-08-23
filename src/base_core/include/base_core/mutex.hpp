@@ -27,10 +27,10 @@ public:
   explicit mutex_c(priority_inheritance_e priority_inheritance);
   ~mutex_c() noexcept;
 
-  mutex_c(const mutex_c&) = delete;
-  mutex_c& operator=(const mutex_c&) = delete;
-  mutex_c(mutex_c&&) = delete;
-  mutex_c& operator=(mutex_c&&) = delete;
+  mutex_c(const mutex_c &) = delete;
+  mutex_c & operator=(const mutex_c &) = delete;
+  mutex_c(mutex_c &&) = delete;
+  mutex_c & operator=(mutex_c &&) = delete;
 
   bool8_t is_locked() const noexcept;
 

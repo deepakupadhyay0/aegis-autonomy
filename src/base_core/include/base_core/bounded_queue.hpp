@@ -42,7 +42,7 @@ public:
   bounded_queue_c & operator=(bounded_queue_c &&) = delete;
 
   bool try_push(const value_t & value)
-    noexcept(std::is_nothrow_copy_assignable_v<value_t>)
+  noexcept(std::is_nothrow_copy_assignable_v<value_t>)
   {
     return this->try_push_impl(value);
   }
@@ -101,7 +101,7 @@ private:
 
   template<typename source_t>
   bool try_push_impl(source_t && value)
-    noexcept(std::is_nothrow_assignable_v<value_t &, source_t &&>)
+  noexcept(std::is_nothrow_assignable_v<value_t &, source_t &&>)
   {
     if (m_size == m_storage.size()) {
       return false;

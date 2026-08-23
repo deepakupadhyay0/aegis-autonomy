@@ -109,9 +109,11 @@ std::optional<struct timespec> ticks_to_timespec(const int64_t ticks) noexcept
     return std::nullopt;
   }
 
-  const struct timespec converted{
+  const struct timespec converted
+  {
     static_cast<std::time_t>(parts->seconds),
-    static_cast<decltype(timespec::tv_nsec)>(parts->nanoseconds)};
+    static_cast<decltype(timespec::tv_nsec)>(parts->nanoseconds)
+  };
   return converted;
 }
 

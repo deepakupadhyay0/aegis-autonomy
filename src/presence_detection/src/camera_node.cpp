@@ -46,11 +46,11 @@ void camera_node_c::step1_allocate_resources(const std::vector<std::string> & ar
   const bool8_t width_requested =
     m_cap.set(
     cv::CAP_PROP_FRAME_WIDTH,
-    config.get_camera().get_image_width());
+    static_cast<common::float64_t>(config.get_camera().get_image_width()));
   const bool8_t height_requested =
     m_cap.set(
     cv::CAP_PROP_FRAME_HEIGHT,
-    config.get_camera().get_image_height());
+    static_cast<common::float64_t>(config.get_camera().get_image_height()));
   const bool8_t fps_requested =
     m_cap.set(cv::CAP_PROP_FPS, config.get_camera().get_fps());
   if (!width_requested || !height_requested || !fps_requested) {
@@ -167,7 +167,7 @@ void camera_node_c::step3_run_forever(const std::vector<std::string> & args)
   uint64_t sequence = 0U;
   while (this->ok() && m_running.load()) {
     m_cap >> frame;
-    
+
     if (frame.empty()) {
       CORE_LOG_WARN("Captured empty frame; skipping");
       continue;

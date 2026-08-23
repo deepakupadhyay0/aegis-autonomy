@@ -45,8 +45,8 @@ std::string_view get_source_basename(const std::string_view path) noexcept
 {
   const std::size_t separator = path.find_last_of("/\\");
   return separator == std::string_view::npos ?
-    path :
-    path.substr(separator + 1U);
+         path :
+         path.substr(separator + 1U);
 }
 
 common::uint64_t get_realtime_ns() noexcept
@@ -178,7 +178,7 @@ local_log_backend_c::local_log_backend_c(
   m_diagnostic_thread(
     options.enable_queue_diagnostics ?
     std::jthread(
-      [this](const std::stop_token stop_token) noexcept {
+      [this](const std::stop_token & stop_token) noexcept {
         // The member jthread is joined before this backend is destroyed.
         this->diagnostic_loop(stop_token);
       }) :
@@ -209,7 +209,9 @@ void local_log_backend_c::enqueue(
   record.source_file.assign(get_source_basename(location.file_name()));
   record.source_line = static_cast<common::uint32_t>(location.line());
   record.message.assign(message);
-  static_cast<void>(m_queue.try_push(std::move(record)));
+  // The queue API uses an rvalue reference to make record transfer explicit.
+  static_cast<void>(m_queue.try_push(
+      std::move(record)));  // NOLINT(performance-move-const-arg)
 }
 
 void local_log_backend_c::shutdown() noexcept
@@ -274,7 +276,7 @@ void local_log_backend_c::flush_sink() noexcept
 }
 
 void local_log_backend_c::diagnostic_loop(
-  const std::stop_token stop_token) noexcept
+  const std::stop_token & stop_token) noexcept
 {
   configure_diagnostic_thread();
   log_queue_statistics_s previous_statistics = m_queue.get_statistics();
@@ -284,8 +286,8 @@ void local_log_backend_c::diagnostic_loop(
         lock,
         stop_token,
         m_queue_diagnostic_interval,
-        []() noexcept {
-          return false;
+      []() noexcept {
+        return false;
         }));
     if (stop_token.stop_requested()) {
       break;
@@ -354,7 +356,9 @@ log_queue_statistics_s local_log_backend_c::enqueue_queue_diagnostics(
   record.thread_name = "log_diag";
   record.source_file = "log_backend";
   record.message.assign(message.data());
-  static_cast<void>(m_queue.try_push(std::move(record)));
+  // The queue API uses an rvalue reference to make record transfer explicit.
+  static_cast<void>(m_queue.try_push(
+      std::move(record)));  // NOLINT(performance-move-const-arg)
   return statistics;
 }
 

@@ -170,7 +170,8 @@ bool sqlite_database_backend_c::insert_batch(
       }
       transaction.commit();
       return true;
-    } catch (...) {
+    } catch (...) {  // NOLINT(bugprone-empty-catch)
+      // Retry the bounded transaction until the configured limit is reached.
     }
     if (attempt == m_options.max_write_retries) {
       break;

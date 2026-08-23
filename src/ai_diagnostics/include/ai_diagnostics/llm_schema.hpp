@@ -15,10 +15,12 @@ namespace llm
 
 struct diagnostic_context_s
 {
+  std::string timestamp;
+  std::string evidence_id;
   std::string source_node;
   std::string source_file;
   common::uint32_t source_line{0U};
-  common::uint8_t level{0U};
+  std::string level;
   std::string fault;
 };
 
@@ -57,8 +59,13 @@ struct chat_completion_response_s
 
 struct diagnostic_analysis_s
 {
+  std::string diagnostic_memory;
   std::string probable_cause;
+  std::string predicted_failure;
   std::string recommended_action;
+  std::vector<std::string> evidence_ids;
+  common::float32_t confidence{0.0F};
+  bool insufficient_evidence{false};
   bool potentially_recoverable{false};
 };
 

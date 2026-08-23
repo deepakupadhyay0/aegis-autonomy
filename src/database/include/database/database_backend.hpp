@@ -41,8 +41,8 @@ protected:
   abstract_database_backend_c() noexcept = default;
 };
 
-class DATABASE_PUBLIC sqlite_database_backend_c final :
-  public abstract_database_backend_c
+class DATABASE_PUBLIC sqlite_database_backend_c final
+  : public abstract_database_backend_c
 {
 public:
   explicit sqlite_database_backend_c(const database_options_s & options);

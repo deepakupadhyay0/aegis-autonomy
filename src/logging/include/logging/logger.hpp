@@ -75,7 +75,7 @@ public:
   void log_format(
     const log_level_e level,
     const std::source_location & location,
-    const char (&format)[format_size_v],
+    const char (& format)[format_size_v],
     argument_ts && ... arguments) noexcept
   {
     static_assert(format_size_v > 1U, "Log format cannot be empty");

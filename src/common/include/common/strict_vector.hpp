@@ -25,7 +25,7 @@ class strict_vector_c final
 private:
   class memory_resource_c final : public std::pmr::memory_resource
   {
-  public:
+public:
     explicit memory_resource_c(const std::size_t max_bytes)
     : m_upstream(std::pmr::get_default_resource()),
       m_max_bytes(max_bytes),
@@ -62,7 +62,7 @@ private:
       return m_failed_allocations;
     }
 
-  private:
+private:
     void * do_allocate(
       const std::size_t bytes,
       const std::size_t alignment) override
@@ -152,7 +152,7 @@ public:
   }
 
   bool try_push_back(value_t && value)
-    noexcept(std::is_nothrow_move_constructible_v<value_t>)
+  noexcept(std::is_nothrow_move_constructible_v<value_t>)
   {
     if (this->full()) {
       return false;
@@ -161,9 +161,9 @@ public:
     return true;
   }
 
-  template<typename... argument_t>
+  template<typename ... argument_t>
   bool try_emplace_back(argument_t &&... arguments)
-    noexcept(std::is_nothrow_constructible_v<value_t, argument_t &&...>)
+  noexcept(std::is_nothrow_constructible_v<value_t, argument_t && ...>)
   {
     if (this->full()) {
       return false;
@@ -231,8 +231,8 @@ public:
   }
 
   bool try_pop_back(value_t & value)
-    noexcept(std::is_nothrow_move_assignable_v<value_t> &&
-    std::is_nothrow_destructible_v<value_t>)
+  noexcept(std::is_nothrow_move_assignable_v<value_t>&&
+  std::is_nothrow_destructible_v<value_t>)
   {
     if (this->empty()) {
       return false;

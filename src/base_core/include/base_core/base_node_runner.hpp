@@ -26,7 +26,7 @@ int32_t create_and_execute_node(
   const base_node_options_s & options)
 {
   static_assert(
-    std::is_base_of_v<ros_base_node_c, derived_node_t> ||
+    std::is_base_of_v<ros_base_node_c, derived_node_t>||
     std::is_base_of_v<lifecycle_base_node_c, derived_node_t>,
     "create_and_execute_node requires a supported base_node_c specialization");
 

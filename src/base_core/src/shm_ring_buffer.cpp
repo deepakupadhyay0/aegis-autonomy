@@ -240,7 +240,7 @@ core_ret_t shm_ring_buffer_c::publish_written_slot(
   }
 
   return publish_slot(*control_ptr, sequence) ?
-    core_ret_e::ok : core_ret_e::wrong_object;
+         core_ret_e::ok : core_ret_e::wrong_object;
 }
 
 bool8_t shm_ring_buffer_c::try_acquire_slot_for_read(
@@ -265,7 +265,7 @@ core_ret_t shm_ring_buffer_c::release_read_slot(
   }
 
   return release_slot(*control_ptr, sequence) ?
-    core_ret_e::ok : core_ret_e::wrong_object;
+         core_ret_e::ok : core_ret_e::wrong_object;
 }
 
 uint32_t shm_ring_buffer_c::get_num_slots() const noexcept

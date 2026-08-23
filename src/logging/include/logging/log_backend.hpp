@@ -71,7 +71,7 @@ public:
 
 private:
   void writer_loop() noexcept;
-  void diagnostic_loop(std::stop_token stop_token) noexcept;
+  void diagnostic_loop(const std::stop_token & stop_token) noexcept;
   void flush_sink() noexcept;
   log_queue_statistics_s enqueue_queue_diagnostics(
     const log_queue_statistics_s & previous_statistics) noexcept;

@@ -70,9 +70,14 @@ TEST(GeneratedConfigTest, AiDiagnosticsDefaultsVerification)
     autonomy_config::AiDiagnostics::get_compile_time_values();
 
   EXPECT_FALSE(diagnostics.get_enabled());
+  EXPECT_EQ(diagnostics.get_input_mode(), "dds");
   EXPECT_FALSE(diagnostics.get_input_topic().empty());
   EXPECT_FALSE(diagnostics.get_report_topic().empty());
   EXPECT_GT(diagnostics.get_queue_capacity(), 0);
+  EXPECT_FALSE(diagnostics.get_minimum_log_level().empty());
+  EXPECT_GT(diagnostics.get_max_records_per_batch(), 0);
+  EXPECT_GT(diagnostics.get_maximum_context_bytes(), 0);
+  EXPECT_FALSE(diagnostics.get_cursor_filename().empty());
   EXPECT_GE(diagnostics.get_cpu_threshold_percent(), 0.0);
   EXPECT_LE(diagnostics.get_cpu_threshold_percent(), 100.0);
   EXPECT_GT(diagnostics.get_idle_samples_required(), 0);

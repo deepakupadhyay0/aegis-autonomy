@@ -8,7 +8,7 @@ namespace autonomy_config
 std::filesystem::path get_config_directory()
 {
   const char * const environment_directory =
-    std::getenv("AEGIS_AUTONOMY_CONFIG_DIR");
+    std::getenv("AEGIS_AUTONOMY_CONFIG_DIR");  // NOLINT(concurrency-mt-unsafe)
   if (environment_directory == nullptr || environment_directory[0] == '\0') {
     return std::filesystem::path(".");
   }

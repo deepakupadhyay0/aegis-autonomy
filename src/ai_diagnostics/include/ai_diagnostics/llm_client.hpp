@@ -22,12 +22,12 @@ public:
   llm_client_c & operator=(llm_client_c &&) = delete;
 
   virtual std::optional<diagnostic_report_s> analyze(
-    const diagnostic_event_s & event) noexcept = 0;
+    const diagnostic_batch_s & batch) noexcept = 0;
   virtual void cancel() noexcept = 0;
 };
 
-class AI_DIAGNOSTICS_PUBLIC openai_compatible_llm_client_c final :
-  public llm_client_c
+class AI_DIAGNOSTICS_PUBLIC openai_compatible_llm_client_c final
+  : public llm_client_c
 {
 public:
   explicit openai_compatible_llm_client_c(
@@ -44,7 +44,7 @@ public:
     openai_compatible_llm_client_c &&) = delete;
 
   std::optional<diagnostic_report_s> analyze(
-    const diagnostic_event_s & event) noexcept override;
+    const diagnostic_batch_s & batch) noexcept override;
   void cancel() noexcept override;
 
 private:
@@ -53,6 +53,7 @@ private:
   common::string64_t m_api_key_environment;
   std::chrono::milliseconds m_request_timeout;
   std::size_t m_maximum_response_bytes;
+  common::fixed_string_c<4096U> m_diagnostic_memory;
   common::cancellable_curl_c m_curl;
 };
 

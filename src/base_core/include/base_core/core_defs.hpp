@@ -18,7 +18,7 @@
 #define CORE_LLD_FMT "%lld"
 #define CORE_LLU_FMT "%llu"
 #ifndef NOMINMAX
-#define NOMINMAX  
+#define NOMINMAX
 #endif
 #else
 #define CORE_LLD_FMT "%ld"
@@ -28,7 +28,9 @@
 #define CORE_MILLION (1000000)
 #define CORE_BILLION (1000000000)
 
-enum class core_ret_e : common::int32_t {
+// Preserve the public status-code representation across module boundaries.
+enum class core_ret_e : common::int32_t    // NOLINT(performance-enum-size)
+{
   ok = 0,
   error = 1,
   bad_arg = 2,

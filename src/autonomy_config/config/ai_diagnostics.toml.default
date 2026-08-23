@@ -1,9 +1,17 @@
 # Experimental, advisory-only AI diagnostics.
 
 enabled = false
+# "dds" consumes diagnostic_msgs/DiagnosticArray. "log_files" reads the
+# existing rotating per-node files without publishing a duplicate DDS stream.
+input_mode = "dds"
 input_topic = "/diagnostics"
 report_topic = "/ai_diagnostics/report"
 queue_capacity = 64
+minimum_log_level = "info"
+# Each request is bounded independently by record count and parsed log bytes.
+max_records_per_batch = 256
+maximum_context_bytes = 65536
+cursor_filename = ".ai_diagnostics.cursor"
 
 cpu_threshold_percent = 35.0
 idle_samples_required = 5

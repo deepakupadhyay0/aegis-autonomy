@@ -9,13 +9,13 @@ namespace common
 
 template<typename value_t>
 concept signed_integer_type =
-  std::signed_integral<value_t> &&
+  std::signed_integral<value_t>&&
   !std::same_as<std::remove_cv_t<value_t>, wchar_t>;
 
 template<typename value_t>
 concept integer_type =
-  std::integral<value_t> &&
-  !std::same_as<std::remove_cv_t<value_t>, bool> &&
+  std::integral<value_t>&&
+  !std::same_as<std::remove_cv_t<value_t>, bool>&&
   !std::same_as<std::remove_cv_t<value_t>, wchar_t>;
 
 namespace add

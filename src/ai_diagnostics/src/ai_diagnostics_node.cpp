@@ -56,6 +56,20 @@ bool events_match(
          left.fault == right.fault;
 }
 
+logging::log_level_e to_log_level(const common::uint8_t level) noexcept
+{
+  if (level == diagnostic_msgs::msg::DiagnosticStatus::WARN) {
+    return logging::log_level_e::warning;
+  }
+  if (level == diagnostic_msgs::msg::DiagnosticStatus::ERROR) {
+    return logging::log_level_e::error;
+  }
+  if (level == diagnostic_msgs::msg::DiagnosticStatus::STALE) {
+    return logging::log_level_e::fatal;
+  }
+  return logging::log_level_e::info;
+}
+
 }  // namespace
 
 ai_diagnostics_node_c::ai_diagnostics_node_c(
@@ -64,14 +78,17 @@ ai_diagnostics_node_c::ai_diagnostics_node_c(
 : base_core::ros_base_node_c(options),
   m_options(load_ai_diagnostics_options()),
   m_queue(),
+  m_log_reader(),
   m_resource_monitor(),
   m_llm_client(),
+  m_shutdown_watcher(),
   m_diagnostic_subscription(),
   m_report_publisher(),
   m_last_analysis(std::chrono::steady_clock::time_point::min()),
   m_last_queued_at(std::chrono::steady_clock::time_point::min()),
   m_last_queued_event(),
   m_report_sequence(0U),
+  m_input_sequence(0U),
   m_rejected_event_count(0U),
   m_failed_analysis_count(0U),
   m_has_last_queued_event(false)
@@ -88,14 +105,17 @@ ai_diagnostics_node_c::ai_diagnostics_node_c(
 : base_core::ros_base_node_c(options),
   m_options(diagnostics_options),
   m_queue(),
+  m_log_reader(),
   m_resource_monitor(std::move(resource_monitor)),
   m_llm_client(std::move(llm_client)),
+  m_shutdown_watcher(),
   m_diagnostic_subscription(),
   m_report_publisher(),
   m_last_analysis(std::chrono::steady_clock::time_point::min()),
   m_last_queued_at(std::chrono::steady_clock::time_point::min()),
   m_last_queued_event(),
   m_report_sequence(0U),
+  m_input_sequence(0U),
   m_rejected_event_count(0U),
   m_failed_analysis_count(0U),
   m_has_last_queued_event(false)
@@ -112,8 +132,12 @@ ai_diagnostics_node_c::ai_diagnostics_node_c(
 ai_diagnostics_node_c::~ai_diagnostics_node_c() noexcept
 {
   m_diagnostic_subscription.reset();
+  m_shutdown_watcher.request_stop();
   if (m_llm_client != nullptr) {
     m_llm_client->cancel();
+  }
+  if (m_shutdown_watcher.joinable()) {
+    m_shutdown_watcher.join();
   }
   if (m_queue != nullptr) {
     m_queue->shutdown();
@@ -129,9 +153,13 @@ void ai_diagnostics_node_c::step1_allocate_resources(
     return;
   }
 
-  m_queue = std::make_unique<
-    common::bounded_mpsc_queue_c<diagnostic_event_s>>(
-    m_options.queue_capacity);
+  if (m_options.input_mode == diagnostics_input_mode_e::dds) {
+    m_queue = std::make_unique<
+      common::bounded_mpsc_queue_c<diagnostic_event_s>>(
+      m_options.queue_capacity);
+  } else {
+    m_log_reader = std::make_unique<log_reader_c>(m_options);
+  }
   if (m_resource_monitor == nullptr) {
     m_resource_monitor = std::make_unique<linux_cpu_monitor_c>(
       m_options.cpu_threshold_percent,
@@ -141,14 +169,16 @@ void ai_diagnostics_node_c::step1_allocate_resources(
     m_llm_client = std::make_unique<openai_compatible_llm_client_c>(m_options);
   }
 
-  const rclcpp::QoS input_qos(rclcpp::KeepLast(10U));
-  m_diagnostic_subscription = this->create_subscription<
-    diagnostic_msgs::msg::DiagnosticArray>(
-    std::string(m_options.input_topic.view()),
-    input_qos,
-    [this](diagnostic_msgs::msg::DiagnosticArray::UniquePtr message) {
-      this->receive_diagnostics(std::move(message));
-    });
+  if (m_options.input_mode == diagnostics_input_mode_e::dds) {
+    const rclcpp::QoS input_qos(rclcpp::KeepLast(10U));
+    m_diagnostic_subscription = this->create_subscription<
+      diagnostic_msgs::msg::DiagnosticArray>(
+      std::string(m_options.input_topic.view()),
+      input_qos,
+      [this](diagnostic_msgs::msg::DiagnosticArray::UniquePtr message) {
+        this->receive_diagnostics(std::move(message));
+      });
+  }
   m_report_publisher = this->create_publisher<
     autonomy_msgs::msg::AiDiagnosticReport>(
     std::string(m_options.report_topic.view()),
@@ -161,6 +191,19 @@ void ai_diagnostics_node_c::step2_start_threads(
   const std::vector<std::string> & args)
 {
   static_cast<void>(args);
+  if (!m_options.enabled || m_llm_client == nullptr) {
+    return;
+  }
+  m_shutdown_watcher = std::jthread(
+    [this](const std::stop_token & stop_token) noexcept {
+      using namespace std::chrono_literals;
+      while (!stop_token.stop_requested() && this->ok()) {
+        std::this_thread::sleep_for(100ms);
+      }
+      if (!stop_token.stop_requested() && m_llm_client != nullptr) {
+        m_llm_client->cancel();
+      }
+    });
 }
 
 void ai_diagnostics_node_c::step3_run_forever(
@@ -171,8 +214,9 @@ void ai_diagnostics_node_c::step3_run_forever(
   static_cast<void>(args);
   while (this->ok()) {
     std::this_thread::sleep_for(m_options.sample_interval);
-    if (!m_options.enabled || m_queue == nullptr ||
-      m_resource_monitor == nullptr || m_llm_client == nullptr)
+    if (!m_options.enabled || m_resource_monitor == nullptr ||
+      m_llm_client == nullptr ||
+      (m_queue == nullptr && m_log_reader == nullptr))
     {
       continue;
     }
@@ -188,14 +232,14 @@ void ai_diagnostics_node_c::step3_run_forever(
       continue;
     }
 
-    diagnostic_event_s event;
-    if (!m_queue->try_pop(event)) {
+    diagnostic_batch_s batch = this->collect_batch();
+    if (batch.events.empty()) {
       continue;
     }
     m_last_analysis = now;
 
     const std::optional<diagnostic_report_s> report =
-      m_llm_client->analyze(event);
+      m_llm_client->analyze(batch);
     if (!report.has_value()) {
       m_failed_analysis_count.fetch_add(1U, std::memory_order_relaxed);
       CORE_LOG_WARN_THROTTLE(
@@ -203,8 +247,50 @@ void ai_diagnostics_node_c::step3_run_forever(
         "AI diagnostic analysis failed; event was not republished");
       continue;
     }
-    this->publish_report(event, report.value());
+    if (report->insufficient_evidence) {
+      continue;
+    }
+    this->publish_report(batch, report.value());
   }
+}
+
+diagnostic_batch_s ai_diagnostics_node_c::collect_batch()
+{
+  diagnostic_batch_s batch;
+  batch.events.reserve(m_options.max_records_per_batch);
+  if (m_options.input_mode == diagnostics_input_mode_e::dds) {
+    if (m_queue == nullptr) {
+      return batch;
+    }
+    diagnostic_event_s event;
+    while (batch.events.size() < m_options.max_records_per_batch &&
+      m_queue->try_pop(event))
+    {
+      batch.events.push_back(event);
+    }
+    return batch;
+  }
+
+  if (m_log_reader == nullptr) {
+    return batch;
+  }
+  const std::vector<parsed_log_record_s> records =
+    m_log_reader->read_next_batch();
+  for (const parsed_log_record_s & record : records) {
+    if (record.node_name == this->get_name()) {
+      continue;
+    }
+    diagnostic_event_s event;
+    event.timestamp = record.timestamp;
+    event.evidence_id = record.evidence_id;
+    event.level = static_cast<common::uint8_t>(record.level);
+    event.source_line = record.source_line;
+    event.source_node = record.node_name;
+    event.source_file = record.source_file;
+    event.fault = record.message;
+    batch.events.push_back(event);
+  }
+  return batch;
 }
 
 void ai_diagnostics_node_c::receive_diagnostics(
@@ -218,14 +304,21 @@ void ai_diagnostics_node_c::receive_diagnostics(
   for (const diagnostic_msgs::msg::DiagnosticStatus & status :
     message->status)
   {
-    if (status.level < diagnostic_msgs::msg::DiagnosticStatus::ERROR ||
+    const logging::log_level_e log_level = to_log_level(status.level);
+    if (log_level < m_options.minimum_log_level ||
       status.name == node_name || status.name == this->get_name())
     {
       continue;
     }
 
     diagnostic_event_s event;
-    event.level = status.level;
+    event.timestamp = std::to_string(message->header.stamp.sec) + "." +
+      std::to_string(message->header.stamp.nanosec);
+    const common::uint64_t input_sequence =
+      m_input_sequence.fetch_add(1U, std::memory_order_relaxed) + 1U;
+    event.evidence_id = std::string("dds:") +
+      std::to_string(input_sequence);
+    event.level = static_cast<common::uint8_t>(log_level);
     event.source_line = parse_source_line(status);
     event.source_node.assign(status.name);
     event.source_file.assign(find_value(status, "source_file"));
@@ -239,7 +332,10 @@ void ai_diagnostics_node_c::receive_diagnostics(
       continue;
     }
     m_last_queued_event = event;
-    if (m_queue->try_push(std::move(event))) {
+    // The queue API uses an rvalue reference to make event transfer explicit.
+    if (m_queue->try_push(
+        std::move(event)))    // NOLINT(performance-move-const-arg)
+    {
       m_last_queued_at = now;
       m_has_last_queued_event = true;
     } else {
@@ -250,12 +346,14 @@ void ai_diagnostics_node_c::receive_diagnostics(
 }
 
 void ai_diagnostics_node_c::publish_report(
-  const diagnostic_event_s & event,
+  const diagnostic_batch_s & batch,
   const diagnostic_report_s & report)
 {
-  if (m_report_publisher == nullptr) {
+  if (m_report_publisher == nullptr || batch.events.empty()) {
     return;
   }
+
+  const diagnostic_event_s & event = batch.events.back();
 
   autonomy_msgs::msg::AiDiagnosticReport message;
   message.header.stamp = this->now();
@@ -264,7 +362,14 @@ void ai_diagnostics_node_c::publish_report(
   message.source_node.assign(event.source_node.view());
   message.fault.assign(event.fault.view());
   message.probable_cause.assign(report.probable_cause.view());
+  message.predicted_failure.assign(report.predicted_failure.view());
   message.recommended_action.assign(report.recommended_action.view());
+  message.evidence_ids.reserve(report.evidence_ids.size());
+  for (const common::string128_t & evidence_id : report.evidence_ids) {
+    message.evidence_ids.emplace_back(evidence_id.view());
+  }
+  message.confidence = report.confidence;
+  message.insufficient_evidence = report.insufficient_evidence;
   message.potentially_recoverable = report.potentially_recoverable;
   m_report_publisher->publish(message);
 }

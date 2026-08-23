@@ -36,7 +36,7 @@ template<typename node_t>
 class base_node_c : public node_t
 {
   static_assert(
-    std::is_same_v<node_t, rclcpp::Node> ||
+    std::is_same_v<node_t, rclcpp::Node>||
     std::is_same_v<node_t, rclcpp_lifecycle::LifecycleNode>,
     "base_node_c supports rclcpp::Node and "
     "rclcpp_lifecycle::LifecycleNode");

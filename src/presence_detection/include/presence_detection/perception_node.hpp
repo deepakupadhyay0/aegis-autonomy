@@ -21,8 +21,8 @@
 
 namespace presence_detection
 {
-class PRESENCE_DETECTION_PUBLIC perception_node_c :
-  public base_core::ros_base_node_c
+class PRESENCE_DETECTION_PUBLIC perception_node_c
+  : public base_core::ros_base_node_c
 {
 public:
   perception_node_c(
@@ -41,7 +41,7 @@ private:
   rclcpp::Publisher<autonomy_msgs::msg::PresenceEvent>::SharedPtr m_presence_pub;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_debug_image_pub;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_depth_image_pub;
-  
+
   cv::Ptr<cv::FaceDetectorYN> m_face_detector;
 
   // ONNX Runtime objects
@@ -50,7 +50,7 @@ private:
   std::unique_ptr<Ort::MemoryInfo> m_memory_info;
 
   void ai_thread_loop();
-  
+
   std::thread m_ai_thread;
   std::atomic<bool> m_running;
   std::unique_ptr<

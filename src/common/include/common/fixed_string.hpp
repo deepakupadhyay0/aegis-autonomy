@@ -16,7 +16,7 @@ public:
   constexpr fixed_string_c() noexcept = default;
 
   template<std::size_t literal_size_v>
-  explicit consteval fixed_string_c(const char (&value)[literal_size_v])
+  explicit consteval fixed_string_c(const char (& value)[literal_size_v])
   {
     static_assert(literal_size_v > 0U, "String literal must include a terminator");
     static_assert(

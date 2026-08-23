@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME} SHARED
   src/ai_diagnostics_node.cpp
   src/llm_client.cpp
   src/llm_schema.cpp
+  src/log_reader.cpp
   src/resource_monitor.cpp
 )
 add_library(ai_diagnostics::ai_diagnostics ALIAS ${PROJECT_NAME})
@@ -84,6 +85,8 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_llm_schema test/test_llm_schema.cpp)
   target_link_libraries(test_llm_schema ${PROJECT_NAME})
+  ament_add_gtest(test_log_reader test/test_log_reader.cpp)
+  target_link_libraries(test_log_reader ${PROJECT_NAME})
 endif()
 
 ament_export_targets(

@@ -94,7 +94,7 @@ public:
   {
     std::unique_lock<base_core::sync::timed_mutex_c> lock(m_mutex);
     m_condition.wait(lock, [this]() {
-      return !m_buffer.empty() || !m_running.load();
+        return !m_buffer.empty() || !m_running.load();
     });
 
     if (!m_running.load()) {
@@ -109,7 +109,7 @@ public:
   {
     std::unique_lock<base_core::sync::timed_mutex_c> lock(m_mutex);
     const bool8_t awakened = m_condition.wait_for(lock, timeout, [this]() {
-      return !m_buffer.empty() || !m_running.load();
+          return !m_buffer.empty() || !m_running.load();
     });
 
     if (!awakened || !m_running.load()) {

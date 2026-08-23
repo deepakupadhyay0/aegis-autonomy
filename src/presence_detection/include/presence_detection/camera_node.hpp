@@ -20,8 +20,8 @@
 namespace presence_detection
 {
 
-class PRESENCE_DETECTION_PUBLIC camera_node_c :
-  public base_core::ros_base_node_c
+class PRESENCE_DETECTION_PUBLIC camera_node_c
+  : public base_core::ros_base_node_c
 {
 public:
   camera_node_c(

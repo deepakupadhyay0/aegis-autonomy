@@ -36,7 +36,7 @@ bool database_handler_c::try_store(database_record_s && record) noexcept
 database_statistics_s database_handler_c::get_statistics() const noexcept
 {
   return m_backend == nullptr ?
-    database_statistics_s{} : m_backend->get_statistics();
+         database_statistics_s{} : m_backend->get_statistics();
 }
 
 void database_handler_c::shutdown() noexcept

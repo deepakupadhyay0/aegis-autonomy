@@ -290,7 +290,8 @@ sqlite_transaction_c::~sqlite_transaction_c() noexcept
   if (!m_committed) {
     try {
       m_connection.execute("ROLLBACK;");
-    } catch (...) {
+    } catch (...) {  // NOLINT(bugprone-empty-catch)
+      // A noexcept destructor cannot recover from a failed best-effort rollback.
     }
   }
 }

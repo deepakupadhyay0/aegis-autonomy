@@ -47,7 +47,7 @@ bool log_queue_c::try_push(
     return false;
   }
 
-  if (!m_queue.try_push(std::move(record))) {
+  if (!m_queue.try_push(record)) {
     this->unlock_queue();
     m_dropped_capacity_count.fetch_add(1U, std::memory_order_relaxed);
     return false;

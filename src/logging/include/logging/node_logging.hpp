@@ -11,8 +11,8 @@ namespace logging
 {
 
 /// @brief Adapts logger_c to the optional base-node logging contract.
-class LOGGING_PUBLIC node_logging_adapter_c final :
-  public base_core::observability::node_logging_c
+class LOGGING_PUBLIC node_logging_adapter_c final
+  : public base_core::observability::node_logging_c
 {
 public:
   node_logging_adapter_c() noexcept;

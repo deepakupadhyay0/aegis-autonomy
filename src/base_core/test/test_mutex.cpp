@@ -28,8 +28,8 @@ TEST(MutexTest, TimedLockReportsTimeout)
 
   core_ret_e result = core_ret_e::error;
   std::thread contender([&mutex, &result]() {
-    result = mutex.timedlock_ms(10);
-  });
+      result = mutex.timedlock_ms(10);
+    });
   contender.join();
 
   EXPECT_EQ(result, core_ret_e::timeout);
@@ -47,12 +47,12 @@ TEST(TimedMutexTest, ThrowsWhenCurrentAcquisitionRequestTimesOut)
 
   std::error_code contender_error;
   std::thread contender([&mutex, &contender_error]() {
-    try {
-      mutex.lock();
-    } catch (const std::system_error & error) {
-      contender_error = error.code();
-    }
-  });
+      try {
+        mutex.lock();
+      } catch (const std::system_error & error) {
+        contender_error = error.code();
+      }
+    });
   contender.join();
 
   EXPECT_EQ(contender_error.value(), ETIMEDOUT);

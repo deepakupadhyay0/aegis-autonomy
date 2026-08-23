@@ -57,13 +57,13 @@ TEST(ConcurrentRingBufferTest, MultithreadedWaitAndPop)
   std::vector<int32_t> consumed_values;
 
   std::thread consumer([&]() {
-    while (running.load()) {
-      auto val = buffer.wait_and_pop_front_timeout(std::chrono::milliseconds(50));
-      if (val.has_value()) {
-        consumed_values.push_back(val.value());
+      while (running.load()) {
+        auto val = buffer.wait_and_pop_front_timeout(std::chrono::milliseconds(50));
+        if (val.has_value()) {
+          consumed_values.push_back(val.value());
+        }
       }
-    }
-  });
+    });
 
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
   buffer.push_back(100);

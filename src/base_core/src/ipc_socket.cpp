@@ -49,7 +49,7 @@ void ipc_socket_c::close_socket() noexcept
 
 bool8_t ipc_socket_c::is_valid() const noexcept
 {
-  return (m_fd >= 0);
+  return  m_fd >= 0;
 }
 
 int32_t ipc_socket_c::get_fd() const noexcept
@@ -57,7 +57,9 @@ int32_t ipc_socket_c::get_fd() const noexcept
   return m_fd;
 }
 
-core_ret_t ipc_socket_c::create_socketpair(ipc_socket_c & parent_sock, ipc_socket_c & child_sock) noexcept
+core_ret_t ipc_socket_c::create_socketpair(
+  ipc_socket_c & parent_sock,
+  ipc_socket_c & child_sock) noexcept
 {
   int32_t fds[2] = {-1, -1};
   int32_t res = ::socketpair(AF_UNIX, SOCK_SEQPACKET, 0, fds);
@@ -292,7 +294,7 @@ core_ret_t ipc_socket_c::receive_frame_notification(
   }
   return common::ipc::deserialize_frame_notification(
     wire_buffer.data(), wire_buffer.size(), notification) ?
-    core_ret_e::ok : core_ret_e::bad_arg;
+         core_ret_e::ok : core_ret_e::bad_arg;
 }
 
 } // namespace ipc

@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-
 #include "common/ipc/ipc_codec.hpp"
 
 #include <array>
@@ -54,4 +53,3 @@ TEST(IpcCodecTest, StreamDescriptorRoundTrip)
   EXPECT_EQ(decoded.stride, source.stride);
   EXPECT_EQ(decoded.format, source.format);
 }
-

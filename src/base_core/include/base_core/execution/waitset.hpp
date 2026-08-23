@@ -24,7 +24,7 @@ class waitset_c final
 {
   static_assert(sizeof...(message_ts) > 0U, "waitset_c requires a subscription");
   static_assert(
-    (std::is_default_constructible_v<message_ts> && ...),
+    (std::is_default_constructible_v<message_ts>&& ...),
     "waitset_c message types must be default constructible");
 
 public:
@@ -33,7 +33,7 @@ public:
     const std::shared_ptr<rclcpp::Subscription<message_ts>> & ... subscriptions)
   : m_waitset(rcl_get_zero_initialized_wait_set()),
     m_cancel_guard(node.get_node_base_interface()->get_context()),
-    m_subscriptions(get_subscription_handles(subscriptions...)),
+    m_subscriptions(get_subscription_handles(subscriptions ...)),
     m_messages(),
     m_message_info(),
     m_subscription_has_message(),

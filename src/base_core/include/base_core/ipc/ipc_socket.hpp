@@ -28,7 +28,9 @@ public:
   ipc_socket_c(ipc_socket_c && other) noexcept;
   ipc_socket_c & operator=(ipc_socket_c && other) noexcept;
 
-  static core_ret_t create_socketpair(ipc_socket_c & parent_sock, ipc_socket_c & child_sock) noexcept;
+  static core_ret_t create_socketpair(
+    ipc_socket_c & parent_sock,
+    ipc_socket_c & child_sock) noexcept;
   core_ret_t bind_and_listen(const std::string & socket_path) noexcept;
   core_ret_t accept_client(ipc_socket_c & client_sock) noexcept;
   core_ret_t connect_to_server(const std::string & socket_path) noexcept;

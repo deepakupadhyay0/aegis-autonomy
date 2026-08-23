@@ -33,8 +33,8 @@ TEST_F(waitset_test_fixture_c, RejectsNullSubscription)
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscription;
 
   EXPECT_THROW(
-    {
-      base_core::execution::waitset_c<std_msgs::msg::String> waitset(
+  {
+    base_core::execution::waitset_c<std_msgs::msg::String> waitset(
         *node,
         subscription);
     },
@@ -89,8 +89,8 @@ TEST_F(waitset_test_fixture_c, RejectsDuplicateSubscription)
     });
 
   EXPECT_THROW(
-    {
-      duplicate_waitset_t waitset(
+  {
+    duplicate_waitset_t waitset(
         *node,
         subscription,
         subscription);

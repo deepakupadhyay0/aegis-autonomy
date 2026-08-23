@@ -129,8 +129,8 @@ void logger_c::log_build_information() noexcept
   const std::source_location location = std::source_location::current();
   const auto enqueue_field =
     [this, &message, &location](
-      const std::string_view name,
-      const std::string_view value) noexcept
+    const std::string_view name,
+    const std::string_view value) noexcept
     {
       const common::int32_t formatted_size =
         static_cast<common::int32_t>(std::snprintf(

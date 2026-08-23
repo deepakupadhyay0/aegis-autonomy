@@ -35,8 +35,8 @@ public:
   using presence_detection::camera_node_c::step1_allocate_resources;
 };
 
-class testable_perception_node_c final :
-  public presence_detection::perception_node_c
+class testable_perception_node_c final
+  : public presence_detection::perception_node_c
 {
 public:
   using presence_detection::perception_node_c::perception_node_c;

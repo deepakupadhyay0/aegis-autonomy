@@ -24,8 +24,8 @@ static_assert(
     rclcpp_lifecycle::LifecycleNode,
     base_core::lifecycle_base_node_c>);
 
-class test_node_logging_c final :
-  public base_core::observability::node_logging_c
+class test_node_logging_c final
+  : public base_core::observability::node_logging_c
 {
 public:
   test_node_logging_c() noexcept
@@ -136,8 +136,8 @@ private:
   inline static std::atomic<bool8_t> s_timer_called{false};
 };
 
-class lifecycle_runner_test_node_c final :
-  public base_core::lifecycle_base_node_c
+class lifecycle_runner_test_node_c final
+  : public base_core::lifecycle_base_node_c
 {
 public:
   lifecycle_runner_test_node_c(

@@ -12,10 +12,12 @@ namespace llm
 void to_json(nlohmann::json & json, const diagnostic_context_s & value)
 {
   json = nlohmann::json{
+    {"timestamp", value.timestamp},
+    {"evidence_id", value.evidence_id},
     {"source_node", value.source_node},
     {"source_file", value.source_file},
     {"source_line", value.source_line},
-    {"level", static_cast<common::uint32_t>(value.level)},
+    {"level", value.level},
     {"fault", value.fault}};
 }
 
@@ -72,11 +74,20 @@ void from_json(
   const nlohmann::json & json,
   diagnostic_analysis_s & value)
 {
+  json.at("diagnostic_memory").get_to(value.diagnostic_memory);
   json.at("probable_cause").get_to(value.probable_cause);
+  json.at("predicted_failure").get_to(value.predicted_failure);
   json.at("recommended_action").get_to(value.recommended_action);
+  json.at("evidence_ids").get_to(value.evidence_ids);
+  json.at("confidence").get_to(value.confidence);
+  json.at("insufficient_evidence").get_to(value.insufficient_evidence);
   json.at("potentially_recoverable").get_to(
     value.potentially_recoverable);
-  if (value.probable_cause.empty() || value.recommended_action.empty()) {
+  if (value.confidence < 0.0F || value.confidence > 1.0F ||
+    (!value.insufficient_evidence &&
+    (value.probable_cause.empty() || value.predicted_failure.empty() ||
+    value.recommended_action.empty())))
+  {
     throw std::invalid_argument("LLM diagnostic analysis is incomplete");
   }
 }

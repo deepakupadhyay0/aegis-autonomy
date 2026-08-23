@@ -20,8 +20,8 @@ public:
   virtual bool resources_available() noexcept = 0;
 };
 
-class AI_DIAGNOSTICS_PUBLIC linux_cpu_monitor_c final :
-  public resource_monitor_c
+class AI_DIAGNOSTICS_PUBLIC linux_cpu_monitor_c final
+  : public resource_monitor_c
 {
 public:
   linux_cpu_monitor_c(

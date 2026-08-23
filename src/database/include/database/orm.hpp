@@ -60,7 +60,7 @@ struct is_fixed_string_s : std::false_type
 };
 
 template<std::size_t capacity_v>
-struct is_fixed_string_s<common::fixed_string_c<capacity_v>> : std::true_type
+struct is_fixed_string_s<common::fixed_string_c<capacity_v>>: std::true_type
 {
 };
 
@@ -111,21 +111,21 @@ std::string make_create_table_sql()
   std::apply(
     [&sql, &first](const auto & ... columns) {
       const auto append_column = [&sql, &first](const auto & descriptor) {
-          if (!first) {
-            sql.append(",");
-          }
-          first = false;
-          append_identifier(sql, descriptor.name);
-          sql.append(" ");
-          using field_t = std::remove_reference_t<decltype(
-                std::declval<entry_t>().*descriptor.member)>;
-          sql.append(sqlite_type<field_t>());
-          if constexpr (std::remove_cvref_t<decltype(descriptor)>::IS_IDENTITY) {
-            sql.append(" PRIMARY KEY AUTOINCREMENT");
-          } else if constexpr (!optional_traits_s<field_t>::IS_OPTIONAL) {
-            sql.append(" NOT NULL");
-          }
-        };
+        if (!first) {
+          sql.append(",");
+        }
+        first = false;
+        append_identifier(sql, descriptor.name);
+        sql.append(" ");
+        using field_t = std::remove_reference_t<decltype(
+          std::declval<entry_t>().*descriptor.member)>;
+        sql.append(sqlite_type<field_t>());
+        if constexpr (std::remove_cvref_t<decltype(descriptor)>::IS_IDENTITY) {
+          sql.append(" PRIMARY KEY AUTOINCREMENT");
+        } else if constexpr (!optional_traits_s<field_t>::IS_OPTIONAL) {
+          sql.append(" NOT NULL");
+        }
+      };
       (append_column(columns), ...);
     },
     table_traits_s<entry_t>::COLUMNS);
@@ -142,18 +142,18 @@ std::string make_insert_sql()
   std::apply(
     [&columns_sql, &values_sql, &first](const auto & ... columns) {
       const auto append_column =
-        [&columns_sql, &values_sql, &first](const auto & descriptor) {
-          if constexpr (std::remove_cvref_t<decltype(descriptor)>::IS_IDENTITY) {
-            return;
-          }
-          if (!first) {
-            columns_sql.append(",");
-            values_sql.append(",");
-          }
-          first = false;
-          append_identifier(columns_sql, descriptor.name);
-          values_sql.append("?");
-        };
+      [&columns_sql, &values_sql, &first](const auto & descriptor) {
+        if constexpr (std::remove_cvref_t<decltype(descriptor)>::IS_IDENTITY) {
+          return;
+        }
+        if (!first) {
+          columns_sql.append(",");
+          values_sql.append(",");
+        }
+        first = false;
+        append_identifier(columns_sql, descriptor.name);
+        values_sql.append("?");
+      };
       (append_column(columns), ...);
     },
     table_traits_s<entry_t>::COLUMNS);
@@ -202,14 +202,14 @@ public:
       std::apply(
         [this, &entry, &index](const auto & ... columns) {
           const auto bind_column =
-            [this, &entry, &index](const auto & descriptor) {
-              if constexpr (!std::remove_cvref_t<
-                  decltype(descriptor)>::IS_IDENTITY)
-              {
-                bind_value(m_statement, index, entry.*descriptor.member);
-                ++index;
-              }
-            };
+          [this, &entry, &index](const auto & descriptor) {
+            if constexpr (!std::remove_cvref_t<
+              decltype(descriptor)>::IS_IDENTITY)
+            {
+              bind_value(m_statement, index, entry.*descriptor.member);
+              ++index;
+            }
+          };
           (bind_column(columns), ...);
         },
         table_traits_s<entry_t>::COLUMNS);
@@ -217,19 +217,20 @@ public:
     } catch (...) {
       try {
         m_statement.reset();
-      } catch (...) {
+      } catch (...) {  // NOLINT(bugprone-empty-catch)
+        // Preserve and rethrow the original insertion failure.
       }
       throw;
     }
     std::apply(
       [this, &entry](const auto & ... columns) {
         const auto set_identity = [this, &entry](const auto & descriptor) {
-            if constexpr (std::remove_cvref_t<decltype(descriptor)>::IS_IDENTITY) {
-              entry.*descriptor.member = static_cast<
-                std::remove_reference_t<decltype(entry.*descriptor.member)>>(
-                m_connection.get_last_insert_id());
-            }
-          };
+          if constexpr (std::remove_cvref_t<decltype(descriptor)>::IS_IDENTITY) {
+            entry.*descriptor.member = static_cast<
+              std::remove_reference_t<decltype(entry.*descriptor.member)>>(
+              m_connection.get_last_insert_id());
+          }
+        };
         (set_identity(columns), ...);
       },
       table_traits_s<entry_t>::COLUMNS);

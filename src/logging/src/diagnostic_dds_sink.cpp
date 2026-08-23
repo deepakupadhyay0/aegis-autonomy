@@ -129,7 +129,8 @@ void diagnostic_dds_sink_c::add(
 {
   try {
     m_impl->add(node_name, record);
-  } catch (...) {
+  } catch (...) {  // NOLINT(bugprone-empty-catch)
+    // Logging must remain non-throwing if the optional diagnostic sink fails.
   }
 }
 
@@ -137,7 +138,8 @@ void diagnostic_dds_sink_c::flush_if_due() noexcept
 {
   try {
     m_impl->flush_if_due();
-  } catch (...) {
+  } catch (...) {  // NOLINT(bugprone-empty-catch)
+    // Logging must remain non-throwing if the optional diagnostic sink fails.
   }
 }
 
@@ -148,7 +150,8 @@ void diagnostic_dds_sink_c::flush() noexcept
   }
   try {
     m_impl->flush();
-  } catch (...) {
+  } catch (...) {  // NOLINT(bugprone-empty-catch)
+    // Destruction and explicit flushing are best-effort and non-throwing.
   }
 }
 

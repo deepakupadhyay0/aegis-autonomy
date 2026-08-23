@@ -78,7 +78,7 @@ std::filesystem::path resolve_log_directory(
   const std::string_view configured_directory)
 {
   const char * const environment_directory =
-    std::getenv("AEGIS_AUTONOMY_LOG_DIR");
+    std::getenv("AEGIS_AUTONOMY_LOG_DIR");  // NOLINT(concurrency-mt-unsafe)
   const bool use_environment_directory =
     environment_directory != nullptr && environment_directory[0] != '\0';
   const std::filesystem::path requested_directory =

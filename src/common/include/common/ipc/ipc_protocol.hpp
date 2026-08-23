@@ -7,7 +7,8 @@ namespace common
 namespace ipc
 {
 
-enum class pixel_format_e : uint32_t
+// The explicit width is part of the shared-memory protocol layout.
+enum class pixel_format_e : uint32_t  // NOLINT(performance-enum-size)
 {
   unknown = 0U,
   bgr8 = 1U,

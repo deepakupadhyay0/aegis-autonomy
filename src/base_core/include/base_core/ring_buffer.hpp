@@ -24,7 +24,8 @@ public:
   {
   }
 
-  ring_buffer_c() : ring_buffer_c(0U) {}
+  ring_buffer_c()
+  : ring_buffer_c(0U) {}
 
   void clear()
   {
@@ -47,7 +48,7 @@ public:
     return m_max_size - 1;
   }
 
-  bool push_back(const T& value)
+  bool push_back(const T & value)
   {
     return this->push_back_impl(value);
   }
