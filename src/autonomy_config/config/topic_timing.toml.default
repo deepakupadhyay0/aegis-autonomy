@@ -1,0 +1,16 @@
+enabled = true
+topic_names = ["/camera/image_raw"]
+expected_rates_hz = [30.0]
+window_sample_count = 100
+startup_sample_count = 10
+startup_timeout_ms = 2000
+warning_timeout_ms = 100
+error_timeout_ms = 500
+rate_low_warning_percent = 90.0
+rate_low_error_percent = 70.0
+rate_high_warning_percent = 110.0
+rate_high_error_percent = 130.0
+delay_mean_warning_percent = 20.0
+delay_mean_error_percent = 50.0
+delay_jitter_warning_percent = 10.0
+delay_jitter_error_percent = 30.0

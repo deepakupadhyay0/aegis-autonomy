@@ -28,8 +28,10 @@ class waitset_c final
     "waitset_c message types must be default constructible");
 
 public:
+  /// Accepts normal and lifecycle nodes through their common node-base interface.
+  template<typename node_t>
   waitset_c(
-    rclcpp::Node & node,
+    node_t & node,
     const std::shared_ptr<rclcpp::Subscription<message_ts>> & ... subscriptions)
   : m_waitset(rcl_get_zero_initialized_wait_set()),
     m_cancel_guard(node.get_node_base_interface()->get_context()),

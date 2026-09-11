@@ -6,9 +6,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <concepts>
-#include <cstddef>
 #include <memory>
-#include <string>
 
 namespace base_core
 {
@@ -24,18 +22,19 @@ requires std::constructible_from<
   node_t &,
   const common::string256_t &,
   const rclcpp::QoS &,
-  std::size_t>
+  rclcpp::IntraProcessSetting>
 std::shared_ptr<waiting_subscriber_t> create_waiting_subscriber(
   node_t & node,
   const common::string256_t & topic_name,
   const rclcpp::QoS & qos,
-  const std::size_t queue_size = 10U)
+  const rclcpp::IntraProcessSetting intra_process_setting =
+  rclcpp::IntraProcessSetting::NodeDefault)
 {
   return std::make_shared<waiting_subscriber_t>(
     node,
     topic_name,
     qos,
-    queue_size);
+    intra_process_setting);
 }
 
 }  // namespace topic

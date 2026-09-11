@@ -3,6 +3,7 @@
 #include "autonomy_config/database.hpp"
 #include "autonomy_config/logging.hpp"
 #include "autonomy_config/presence_detection.hpp"
+#include "autonomy_config/topic_timing.hpp"
 
 TEST(GeneratedConfigTest, RuntimeValuesRetrieval)
 {
@@ -83,6 +84,17 @@ TEST(GeneratedConfigTest, AiDiagnosticsDefaultsVerification)
   EXPECT_GT(diagnostics.get_idle_samples_required(), 0);
   EXPECT_GT(diagnostics.get_request_timeout_ms(), 0);
   EXPECT_GT(diagnostics.get_maximum_response_bytes(), 0);
+}
+
+TEST(GeneratedConfigTest, TopicTimingDefaultsVerification)
+{
+  const autonomy_config::TopicTiming & timing =
+    autonomy_config::TopicTiming::get_compile_time_values();
+
+  ASSERT_EQ(timing.get_topic_names().size(), timing.get_expected_rates_hz().size());
+  EXPECT_FALSE(timing.get_topic_names().empty());
+  EXPECT_GT(timing.get_window_sample_count(), timing.get_startup_sample_count());
+  EXPECT_GT(timing.get_error_timeout_ms(), timing.get_warning_timeout_ms());
 }
 
 int main(int argc, char ** argv)
