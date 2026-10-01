@@ -1,4 +1,5 @@
 BUILD_TYPE ?= Debug
+CUDA_ARCHITECTURES ?= native
 VENV_DIR := $(CURDIR)/.agv_venv
 VENV_PIP := $(VENV_DIR)/bin/pip
 VENV_CONAN := $(VENV_DIR)/bin/conan
@@ -8,7 +9,11 @@ CONAN_STAMP := build/$(BUILD_TYPE)/generators/.conan_deps.stamp
 
 # Default target runs colcon build with Ninja generator for maximum speed
 all: $(CONAN_STAMP)
-	COLCON_DEFAULTS_FILE=colcon_defaults.yaml colcon build --event-handlers console_direct+ --cmake-args -G Ninja -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/build/$(BUILD_TYPE)/generators/conan_toolchain.cmake
+	COLCON_DEFAULTS_FILE=colcon_defaults.yaml colcon build --event-handlers console_direct+ --cmake-args \
+		-G Ninja \
+		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+		-DCMAKE_CUDA_ARCHITECTURES=$(CUDA_ARCHITECTURES) \
+		-DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/build/$(BUILD_TYPE)/generators/conan_toolchain.cmake
 
 $(CONAN_STAMP): conanfile.txt
 	$(MAKE) conan_deps BUILD_TYPE=$(BUILD_TYPE)
