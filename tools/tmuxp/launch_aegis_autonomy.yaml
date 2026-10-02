@@ -1,4 +1,4 @@
-session_name: presence_detection
+session_name: aegis_autonomy
 start_directory: ${PWD}
 shell_command_before:
   - source /opt/ros/jazzy/setup.bash

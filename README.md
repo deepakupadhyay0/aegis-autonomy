@@ -40,12 +40,23 @@ flowchart LR
     Config --> LROS
     Core[common + base_core + logging] --> PRROS
     Core --> LROS
+
+    PRROS -. logs and diagnostics .-> Evidence[Bounded diagnostic evidence]
+    LROS -. logs and diagnostics .-> Evidence
+    Evidence --> AID[ai_diagnostics - work in progress]
+    AID --> Report[Evidence-linked diagnostic report]
+    Report --> Operator[Operator and debugging workflow]
 ```
 
 The learned model narrows the search space; it is not trusted to publish a
 pose by itself. NDT supplies the geometric check. This division lets us improve
 the neural model without weakening localization acceptance criteria, and lets
 us benchmark registration independently of the model.
+
+`ai_diagnostics` observes the stack from outside this decision path. Its goal
+is to correlate bounded evidence from multiple autonomy modules, explain likely
+fault chains, and give an operator a traceable starting point for debugging. It
+does not modify results, restart nodes, or issue control commands.
 
 ## Engineering approach
 
@@ -118,7 +129,53 @@ device lambda. See the [accelerator guide](src/accelerator/README.md) and
 | [`place_recognition_ros`](src/place_recognition_ros) | Waits for `CompressedImage`, optionally polls one timestamp-compatible `WifiObservation`, preprocesses the image, executes the model on CUDA when available, and publishes `PlaceDescriptor`. | Image-only rosbag playback cannot be blocked by a missing WiFi stream. DDS history depth controls pending data, and malformed or stale WiFi observations are rejected. |
 | [`ml/place_recognition`](ml/place_recognition) | Offline C++/LibTorch training and evaluation using trajectory-ordered splits, triplet loss, modality dropout, retrieval metrics, HDF5 WiFi data, and an optional synchronized camera manifest. | Training and deployment share the same C++ model implementation, reducing preprocessing and architecture drift. Evaluation reports retrieval quality before integration into localization. |
 | [`presence_detection`](src/presence_detection) | Camera acquisition plus a face/depth perception demonstrator using OpenCV, ONNX Runtime, a shared-memory camera path, and DDS fallback. | Exercises model deployment, camera ownership, bounded frame handoff, shared-memory IPC, and fallback behavior in a concrete perception pipeline. |
-| [`ai_diagnostics`](src/ai_diagnostics) | Optional advisory analysis of bounded diagnostic/log batches through an OpenAI-compatible endpoint, with CPU gating and strict response validation. | Can retain bounded diagnostic context and suggest probable causes without executing recovery actions or placing model work in control paths. It is disabled by default. |
+| [`ai_diagnostics`](src/ai_diagnostics) | Work-in-progress, stack-wide diagnostic reasoning over bounded ROS diagnostics or rotating logs, using an LLM-compatible local or edge model endpoint. | Correlates symptoms across modules and produces evidence-linked probable causes, predicted failures, and recommended checks without placing generative inference in autonomy decision paths. |
+
+## AI-assisted autonomy diagnostics
+
+[`ai_diagnostics`](src/ai_diagnostics) is being developed as the diagnostic
+and debugging layer for the whole autonomy system. Traditional health checks
+are good at reporting individual symptoms: a LiDAR deadline was missed, an NDT
+scan had too few correspondences, a CUDA call failed, a camera frame became
+stale, or a queue started dropping records. The useful debugging question is
+often how those symptoms relate over time and which subsystem should be
+inspected first.
+
+The implemented path is intentionally advisory and bounded:
+
+1. ingest `diagnostic_msgs/DiagnosticArray` records or incrementally read the
+   existing rotating node logs;
+2. retain bounded batches with stable evidence identifiers and severity;
+3. wait for sustained low CPU usage before requesting analysis;
+4. send a size-limited request to a configured OpenAI-compatible local SLM or
+   edge endpoint;
+5. reject malformed, oversized, unsupported, or ungrounded responses; and
+6. publish a bounded `autonomy_msgs/msg/AiDiagnosticReport` containing the
+   probable cause, predicted failure, recommended action, confidence, and the
+   exact evidence identifiers used.
+
+A bounded diagnostic-memory summary carries unresolved context into the next
+batch without replaying an unbounded log history. This makes slow degradation,
+intermittent faults, and symptoms spanning multiple nodes easier to investigate.
+The backend remains replaceable: deployments can use an on-robot model server
+or a trusted edge endpoint without changing autonomy nodes.
+
+The safety boundary is as important as the model. The package is disabled by
+default, never executes its recommendation, and does not start, stop, restart,
+or reconfigure another node. Insufficient-evidence responses do not publish a
+warning. The model server must have its own CPU/GPU limits, and operators remain
+responsible for accepting any recovery action.
+
+Before this becomes a dependable operational tool, the project still needs:
+
+- standardized structured health events from localization, acceleration,
+  perception, timing monitors, logging, and persistence;
+- replayable fault-injection scenarios with expected root causes;
+- measurements for unsupported claims, false positives, missed correlations,
+  latency, and model resource interference;
+- clear endpoint privacy and data-retention rules; and
+- an operator view that links every report back to the cited records and
+  relevant runtime metrics.
 
 The current place-model checkpoint is a **LibTorch parameter archive**, even
 though it uses a `.pt` suffix. `place_recognition_ros` reconstructs the C++
@@ -136,9 +193,11 @@ Implemented and exercised:
 - a ROS adapter that consumes LiDAR bags and runs the initial first-scan-map
   integration path;
 - camera/WiFi place-encoder training and evaluation in C++ LibTorch;
-- camera-driven ROS inference with optional WiFi; and
+- camera-driven ROS inference with optional WiFi;
 - a CUDA LibTorch smoke test that executes the encoder on the visible NVIDIA
-  GPU.
+  GPU; and
+- the work-in-progress AI diagnostic ingestion, bounded endpoint client,
+  evidence validation, diagnostic memory, and advisory report path.
 
 Still being developed:
 
@@ -150,7 +209,9 @@ Still being developed:
 - a reference descriptor database and nearest-neighbor retrieval;
 - learned candidate to NDT verification and pose-correction integration;
 - TensorRT export/runtime after the LibTorch model establishes an accuracy
-  baseline; and
+  baseline;
+- standardized health evidence and a fault corpus for evaluating
+  `ai_diagnostics`; and
 - end-to-end latency, GPU-memory, throughput, and failure-injection profiles.
 
 ## Documentation
@@ -175,8 +236,9 @@ Use the guides according to the task:
   and [database](src/database/README.md) document their runtime contracts.
 
 The existing
-[presence-perception tmuxp session](config/presence_perception.yaml) starts the
-camera publisher, perception node, and image viewer for that demonstrator.
+[Aegis Autonomy tmuxp session](tools/tmuxp/launch_aegis_autonomy.yaml) currently
+starts the camera publisher, perception node, and image viewer for the
+presence-detection demonstrator.
 
 ## Runtime configuration model
 
@@ -204,9 +266,12 @@ measurable localization pipeline:
    behavior and ROS bag ingestion.
 4. **Learned retrieval:** camera and optional WiFi descriptors trained and
    deployed through the same C++ model.
-5. **System integration:** reference descriptor indexing, candidate retrieval,
+5. **Cross-stack diagnostics:** structured health evidence, bounded
+   multi-module correlation, replayable fault cases, and an evidence-linked
+   operator debugging workflow.
+6. **System integration:** reference descriptor indexing, candidate retrieval,
    static-map selection, NDT verification, and accepted pose correction.
-6. **Deployment optimization:** profiling-driven buffer reuse, asynchronous
+7. **Deployment optimization:** profiling-driven buffer reuse, asynchronous
    transfers where ownership permits, TensorRT inference, and recorded latency
    and memory budgets.
 
