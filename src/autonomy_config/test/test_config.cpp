@@ -3,6 +3,7 @@
 #include "autonomy_config/database.hpp"
 #include "autonomy_config/logging.hpp"
 #include "autonomy_config/localization.hpp"
+#include "autonomy_config/place_recognition.hpp"
 #include "autonomy_config/presence_detection.hpp"
 #include "autonomy_config/topic_timing.hpp"
 
@@ -96,6 +97,21 @@ TEST(GeneratedConfigTest, TopicTimingDefaultsVerification)
   EXPECT_FALSE(timing.get_topic_names().empty());
   EXPECT_GT(timing.get_window_sample_count(), timing.get_startup_sample_count());
   EXPECT_GT(timing.get_error_timeout_ms(), timing.get_warning_timeout_ms());
+}
+
+TEST(GeneratedConfigTest, PlaceRecognitionDefaultsVerification)
+{
+  const autonomy_config::PlaceRecognition & place_recognition =
+    autonomy_config::PlaceRecognition::get_compile_time_values();
+
+  EXPECT_FALSE(place_recognition.get_ros().get_image_topic().empty());
+  EXPECT_FALSE(place_recognition.get_ros().get_descriptor_topic().empty());
+  EXPECT_GT(place_recognition.get_ros().get_image_queue_depth(), 0);
+  EXPECT_GT(place_recognition.get_model().get_wifi_feature_count(), 0);
+  EXPECT_GT(place_recognition.get_model().get_access_point_count(), 0);
+  EXPECT_GT(place_recognition.get_model().get_descriptor_size(), 0);
+  EXPECT_GT(place_recognition.get_model().get_image_width(), 0);
+  EXPECT_GT(place_recognition.get_model().get_image_height(), 0);
 }
 
 TEST(GeneratedConfigTest, LocalizationDefaultsVerification)

@@ -15,3 +15,7 @@ src/presence_detection/models/
 
 # Misc
 .clang-tidy
+
+# Offline ML experiment outputs and datasets
+ml/place_recognition/data/
+ml/place_recognition/*.pt

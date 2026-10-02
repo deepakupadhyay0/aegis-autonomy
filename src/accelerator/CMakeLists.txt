@@ -7,6 +7,11 @@ set(CMAKE_CUDA_STANDARD 20)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if(DEFINED ENV{ROBOT_AUTONOMY_CUDA_ARCHITECTURES} AND
+  NOT "$ENV{ROBOT_AUTONOMY_CUDA_ARCHITECTURES}" STREQUAL "")
+  set(CMAKE_CUDA_ARCHITECTURES "$ENV{ROBOT_AUTONOMY_CUDA_ARCHITECTURES}")
+endif()
+
 # A previous configure can leave this cache entry defined but empty. CMake rejects an empty
 # architecture list before it can ask NVCC for its default, so remove only that invalid value.
 # Explicit non-empty values supplied by a toolchain or the user are preserved.
