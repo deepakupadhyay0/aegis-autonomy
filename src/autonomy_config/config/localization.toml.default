@@ -1,0 +1,32 @@
+# Default configuration for the CUDA NDT localization node.
+# Runtime overrides are read from AEGIS_AUTONOMY_CONFIG_DIR/localization.toml.
+
+[ros]
+points_topic = "/os_cloud_node/points"
+pose_topic = "/localization/ndt_pose"
+map_frame = "ndt_map"
+pose_queue_depth = 10
+
+[map]
+voxel_size_m = 1.0
+minimum_points_per_voxel = 6
+minimum_covariance_eigenvalue = 0.001
+covariance_regularization_ratio = 0.01
+maximum_points = 500000
+maximum_voxels = 500000
+
+[localizer]
+maximum_iterations = 30
+maximum_line_search_steps = 6
+neighbor_radius_voxels = 1
+maximum_scan_points = 500000
+minimum_correspondences = 20
+maximum_mahalanobis_distance_squared = 25.0
+hessian_damping = 0.000001
+translation_convergence_m = 0.0001
+rotation_convergence_rad = 0.0001
+maximum_translation_step_m = 1.0
+maximum_rotation_step_rad = 0.35
+
+[accelerator]
+device_index = 0

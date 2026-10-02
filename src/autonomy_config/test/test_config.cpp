@@ -2,6 +2,7 @@
 #include "autonomy_config/ai_diagnostics.hpp"
 #include "autonomy_config/database.hpp"
 #include "autonomy_config/logging.hpp"
+#include "autonomy_config/localization.hpp"
 #include "autonomy_config/presence_detection.hpp"
 #include "autonomy_config/topic_timing.hpp"
 
@@ -95,6 +96,24 @@ TEST(GeneratedConfigTest, TopicTimingDefaultsVerification)
   EXPECT_FALSE(timing.get_topic_names().empty());
   EXPECT_GT(timing.get_window_sample_count(), timing.get_startup_sample_count());
   EXPECT_GT(timing.get_error_timeout_ms(), timing.get_warning_timeout_ms());
+}
+
+TEST(GeneratedConfigTest, LocalizationDefaultsVerification)
+{
+  const autonomy_config::Localization & localization =
+    autonomy_config::Localization::get_compile_time_values();
+
+  EXPECT_FALSE(localization.get_ros().get_points_topic().empty());
+  EXPECT_FALSE(localization.get_ros().get_pose_topic().empty());
+  EXPECT_FALSE(localization.get_ros().get_map_frame().empty());
+  EXPECT_GT(localization.get_ros().get_pose_queue_depth(), 0);
+  EXPECT_GT(localization.get_map().get_voxel_size_m(), 0.0);
+  EXPECT_GE(localization.get_map().get_minimum_points_per_voxel(), 4);
+  EXPECT_GT(localization.get_map().get_maximum_points(), 0);
+  EXPECT_GT(localization.get_map().get_maximum_voxels(), 0);
+  EXPECT_GT(localization.get_localizer().get_maximum_scan_points(), 0);
+  EXPECT_GE(localization.get_localizer().get_minimum_correspondences(), 6);
+  EXPECT_GE(localization.get_accelerator().get_device_index(), 0);
 }
 
 int main(int argc, char ** argv)

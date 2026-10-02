@@ -22,6 +22,7 @@ set(TOML_SCHEMAS
   "${CMAKE_CURRENT_SOURCE_DIR}/config/ai_diagnostics.toml.default"
   "${CMAKE_CURRENT_SOURCE_DIR}/config/database.toml.default"
   "${CMAKE_CURRENT_SOURCE_DIR}/config/logging.toml.default"
+  "${CMAKE_CURRENT_SOURCE_DIR}/config/localization.toml.default"
   "${CMAKE_CURRENT_SOURCE_DIR}/config/presence_detection.toml.default"
   "${CMAKE_CURRENT_SOURCE_DIR}/config/topic_timing.toml.default"
 )
