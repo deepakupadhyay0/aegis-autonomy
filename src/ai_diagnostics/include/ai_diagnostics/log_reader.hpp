@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ai_diagnostics/ai_diagnostics_config.hpp"
+#include "ai_diagnostics/diagnostic_types.hpp"
 #include "ai_diagnostics/visibility_control.hpp"
 #include "common/fixed_string.hpp"
 #include "common/numeric_types.hpp"
@@ -24,6 +25,7 @@ struct parsed_log_record_s
   common::uint32_t source_line{0U};
   common::string256_t message;
   common::string128_t evidence_id;
+  bool truncated{false};
 };
 
 class AI_DIAGNOSTICS_PUBLIC log_reader_c final
@@ -38,6 +40,8 @@ public:
   log_reader_c & operator=(log_reader_c &&) = delete;
 
   std::vector<parsed_log_record_s> read_next_batch();
+  /// Persist offsets after the corresponding batch has been handled.
+  bool commit();
 
 private:
   struct file_identity_s
@@ -57,7 +61,7 @@ private:
 
   std::vector<log_file_s> discover_log_files() const;
   void load_cursor();
-  void save_cursor(const std::vector<log_file_s> & active_files) const;
+  bool save_cursor(const std::vector<log_file_s> & active_files) const;
 
   std::filesystem::path m_log_directory;
   std::filesystem::path m_cursor_path;
@@ -72,5 +76,9 @@ AI_DIAGNOSTICS_PUBLIC bool parse_log_line(
   const std::string_view evidence_id,
   const std::string_view line,
   parsed_log_record_s & record) noexcept;
+
+/// Extract bounded numeric name=value measurements from a retained log message.
+AI_DIAGNOSTICS_PUBLIC void extract_numeric_log_measurements(
+  diagnostic_event_s & event);
 
 }  // namespace ai_diagnostics

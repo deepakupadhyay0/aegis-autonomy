@@ -43,7 +43,8 @@ flowchart LR
 
     PRROS -. logs and diagnostics .-> Evidence[Bounded diagnostic evidence]
     LROS -. logs and diagnostics .-> Evidence
-    Evidence --> AID[ai_diagnostics - work in progress]
+    Presence[presence_detection] -. logs and diagnostics .-> Evidence
+    Evidence --> AID[ai_diagnostics]
     AID --> Report[Evidence-linked diagnostic report]
     Report --> Operator[Operator and debugging workflow]
 ```
@@ -129,11 +130,16 @@ device lambda. See the [accelerator guide](src/accelerator/README.md) and
 | [`place_recognition_ros`](src/place_recognition_ros) | Waits for `CompressedImage`, optionally polls one timestamp-compatible `WifiObservation`, preprocesses the image, executes the model on CUDA when available, and publishes `PlaceDescriptor`. | Image-only rosbag playback cannot be blocked by a missing WiFi stream. DDS history depth controls pending data, and malformed or stale WiFi observations are rejected. |
 | [`ml/place_recognition`](ml/place_recognition) | Offline C++/LibTorch training and evaluation using trajectory-ordered splits, triplet loss, modality dropout, retrieval metrics, HDF5 WiFi data, and an optional synchronized camera manifest. | Training and deployment share the same C++ model implementation, reducing preprocessing and architecture drift. Evaluation reports retrieval quality before integration into localization. |
 | [`presence_detection`](src/presence_detection) | Camera acquisition plus a face/depth perception demonstrator using OpenCV, ONNX Runtime, a shared-memory camera path, and DDS fallback. | Exercises model deployment, camera ownership, bounded frame handoff, shared-memory IPC, and fallback behavior in a concrete perception pipeline. |
-| [`ai_diagnostics`](src/ai_diagnostics) | Work-in-progress, stack-wide diagnostic reasoning over bounded ROS diagnostics or rotating logs, using an LLM-compatible local or edge model endpoint. | Correlates symptoms across modules and produces evidence-linked probable causes, predicted failures, and recommended checks without placing generative inference in autonomy decision paths. |
+| [`ai_diagnostics`](src/ai_diagnostics) | Stack-wide advisory diagnostic reasoning over bounded ROS diagnostics or rotating logs, using an LLM-compatible local or edge model endpoint. | Keeps incident facts under node control and publishes model prose alongside the observed fault and source evidence ID, outside autonomy decision paths. |
+
+The current place-model checkpoint is a **LibTorch parameter archive**, even
+though it uses a `.pt` suffix. `place_recognition_ros` reconstructs the C++
+module and loads its parameters with `torch::serialize::InputArchive`; it does
+not currently load a Python-exported TorchScript module.
 
 ## AI-assisted autonomy diagnostics
 
-[`ai_diagnostics`](src/ai_diagnostics) is being developed as the diagnostic
+[`ai_diagnostics`](src/ai_diagnostics) provides a diagnostic
 and debugging layer for the whole autonomy system. Traditional health checks
 are good at reporting individual symptoms: a LiDAR deadline was missed, an NDT
 scan had too few correspondences, a CUDA call failed, a camera frame became
@@ -145,46 +151,60 @@ The implemented path is intentionally advisory and bounded:
 
 1. ingest `diagnostic_msgs/DiagnosticArray` records or incrementally read the
    existing rotating node logs;
-2. retain bounded batches with stable evidence identifiers and severity;
+2. retain a bounded incident window and up to five preceding healthy records
+   from the faulting node, with stable evidence identifiers and severity;
 3. wait for sustained low CPU usage before requesting analysis;
 4. send a size-limited request to a configured OpenAI-compatible local SLM or
    edge endpoint;
-5. reject malformed, oversized, unsupported, or ungrounded responses; and
-6. publish a bounded `autonomy_msgs/msg/AiDiagnosticReport` containing the
-   probable cause, predicted failure, recommended action, confidence, and the
-   exact evidence identifiers used.
+5. reject malformed or oversized chat responses; and
+6. publish a bounded `autonomy_msgs/msg/AiDiagnosticReport` with the observed
+   fault, its source evidence ID, and the model's unverified prose analysis.
 
-A bounded diagnostic-memory summary carries unresolved context into the next
-batch without replaying an unbounded log history. This makes slow degradation,
-intermittent faults, and symptoms spanning multiple nodes easier to investigate.
-The backend remains replaceable: deployments can use an on-robot model server
-or a trusted edge endpoint without changing autonomy nodes.
+The incident window is built from node observations, so model prose cannot
+become evidence in a later diagnosis. An observed active fault
+can be reported while its cause is unresolved; recovery requires a later
+healthy status from the same source. The local-model benchmark uses one
+synthetic LiDAR log to compare ambiguous drift, timing evidence, geometric
+evidence, and a recovered warning without revealing future records to an
+earlier request.
+The model is asked to compare measurements against the healthy baseline and
+state when the evidence cannot distinguish causes. The complete HTTP response
+is bounded by `maximum_response_bytes` (64 KiB by default); an overlong
+response is rejected.
+The log-file input now extracts bounded numeric `name=value` metrics into the
+same measurement fields used by DDS input, so both paths give the model
+comparable baseline and incident values.
+The node derives incident identity and source from observations. It does not
+use a model-generated confidence score or cause code.
+
+The default backend is a separately launched local model server; no paid API
+is required. Its chat-completions interface also lets deployments use a trusted
+edge endpoint without changing autonomy nodes. The
+[AI diagnostics guide](src/ai_diagnostics/README.md) gives a local CUDA server
+example and its resource limits. Its local-model smoke test reports bounded
+response details when a case fails and continues through the remaining cases.
 
 The safety boundary is as important as the model. The package is disabled by
-default, never executes its recommendation, and does not start, stop, restart,
-or reconfigure another node. Insufficient-evidence responses do not publish a
-warning. The model server must have its own CPU/GPU limits, and operators remain
+default, never executes model prose, and does not start, stop, restart,
+or reconfigure another node. Uncertain model prose does not hide an observed
+active fault; recovered windows do not publish an active warning. The model
+server must have its own CPU/GPU limits, and operators remain
 responsible for accepting any recovery action.
 
 Before this becomes a dependable operational tool, the project still needs:
 
 - standardized structured health events from localization, acceleration,
   perception, timing monitors, logging, and persistence;
-- replayable fault-injection scenarios with expected root causes;
+- broader replayable fault-injection scenarios with expected root causes;
 - measurements for unsupported claims, false positives, missed correlations,
   latency, and model resource interference;
 - clear endpoint privacy and data-retention rules; and
-- an operator view that links every report back to the cited records and
+- an operator view that links every report back to its source records and
   relevant runtime metrics.
-
-The current place-model checkpoint is a **LibTorch parameter archive**, even
-though it uses a `.pt` suffix. `place_recognition_ros` reconstructs the C++
-module and loads its parameters with `torch::serialize::InputArchive`; it does
-not currently load a Python-exported TorchScript module.
 
 ## Current state
 
-Implemented and exercised:
+Implemented in the repository:
 
 - the ROS 2 lifecycle, wait-set, bounded queue, shared-memory, configuration,
   logging, database, and monitoring foundations;
@@ -196,8 +216,8 @@ Implemented and exercised:
 - camera-driven ROS inference with optional WiFi;
 - a CUDA LibTorch smoke test that executes the encoder on the visible NVIDIA
   GPU; and
-- the work-in-progress AI diagnostic ingestion, bounded endpoint client,
-  evidence validation, diagnostic memory, and advisory report path.
+- AI diagnostic ingestion from DDS or rotating logs, bounded endpoint
+  requests, incident-window retry, and advisory reports.
 
 Still being developed:
 

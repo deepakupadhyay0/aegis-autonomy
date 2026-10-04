@@ -1,13 +1,11 @@
 std_msgs/Header header
 
+string<=128 incident_id
+string<=32 as_of
 uint64 sequence
 uint8 source_level
 string<=64 source_node
+string<=128 source_evidence_id
 string<=256 fault
-string<=256 probable_cause
-string<=256 predicted_failure
-string<=256 recommended_action
-string<=128[<=32] evidence_ids
-float32 confidence
-bool insufficient_evidence
-bool potentially_recoverable
+# Unverified model prose. The publisher limits it to maximum_response_bytes.
+string<=1048576 analysis

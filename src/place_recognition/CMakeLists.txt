@@ -22,7 +22,10 @@ if(DEFINED ENV{TORCH_CMAKE_PREFIX} AND
     "$ENV{TORCH_CMAKE_PREFIX}/Torch"
     CACHE PATH "Path containing TorchConfig.cmake" FORCE)
 endif()
+# LibTorch's Caffe2 config probes nvtx3 with a different package name.
+set(FPHSA_NAME_MISMATCHED TRUE)
 find_package(Torch REQUIRED)
+unset(FPHSA_NAME_MISMATCHED)
 separate_arguments(TORCH_COMPILE_OPTIONS NATIVE_COMMAND "${TORCH_CXX_FLAGS}")
 
 add_library(${PROJECT_NAME} SHARED

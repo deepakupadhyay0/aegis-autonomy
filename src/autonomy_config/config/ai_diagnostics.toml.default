@@ -1,4 +1,4 @@
-# Experimental, advisory-only AI diagnostics.
+# Advisory-only AI diagnostics; disabled by default.
 
 enabled = false
 # "dds" consumes diagnostic_msgs/DiagnosticArray. "log_files" reads the
@@ -8,9 +8,12 @@ input_topic = "/diagnostics"
 report_topic = "/ai_diagnostics/report"
 queue_capacity = 64
 minimum_log_level = "info"
-# Each request is bounded independently by record count and parsed log bytes.
+# Each incident window is bounded by record count and parsed evidence bytes.
+# A health=ok INFO log record or DDS DiagnosticStatus::OK closes an incident.
 max_records_per_batch = 256
-maximum_context_bytes = 65536
+# Conservative starting budget for a small local model; profile with the
+# complete autonomy workload before increasing it.
+maximum_context_bytes = 8192
 cursor_filename = ".ai_diagnostics.cursor"
 
 cpu_threshold_percent = 35.0
@@ -18,8 +21,9 @@ idle_samples_required = 5
 sample_interval_ms = 1000
 analysis_cooldown_ms = 30000
 
-request_timeout_ms = 10000
+request_timeout_ms = 30000
 maximum_response_bytes = 65536
-endpoint = ""
-model = ""
-api_key_env = "AEGIS_AUTONOMY_LLM_API_KEY"
+# The local server is a separate process and must be started explicitly.
+endpoint = "http://127.0.0.1:8080/v1/chat/completions"
+model = "aegis-diagnostics"
+api_key_env = ""

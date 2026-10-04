@@ -34,7 +34,10 @@ if(DEFINED ENV{TORCH_CMAKE_PREFIX} AND
     "$ENV{TORCH_CMAKE_PREFIX}/Torch"
     CACHE PATH "Path containing TorchConfig.cmake" FORCE)
 endif()
+# place_recognition imports Torch, whose Caffe2 config probes nvtx3.
+set(FPHSA_NAME_MISMATCHED TRUE)
 find_package(place_recognition REQUIRED)
+unset(FPHSA_NAME_MISMATCHED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 

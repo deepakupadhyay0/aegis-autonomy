@@ -4,11 +4,20 @@
 #include "ai_diagnostics/diagnostic_types.hpp"
 #include "ai_diagnostics/visibility_control.hpp"
 #include "common/cancellable_curl.hpp"
+#include "common/numeric_types.hpp"
 
 #include <optional>
+#include <string>
 
 namespace ai_diagnostics
 {
+
+struct llm_attempt_diagnostics_s
+{
+  std::string failure_reason;
+  std::string response_excerpt;
+  common::int64_t http_status{0};
+};
 
 class AI_DIAGNOSTICS_PUBLIC llm_client_c
 {
@@ -45,15 +54,25 @@ public:
 
   std::optional<diagnostic_report_s> analyze(
     const diagnostic_batch_s & batch) noexcept override;
+  // The excerpt is bounded but can contain supplied evidence. Inspect it only
+  // in a controlled diagnostic session, and do not log it on the node path.
+  std::optional<diagnostic_report_s> analyze_with_diagnostics(
+    const diagnostic_batch_s & batch,
+    llm_attempt_diagnostics_s & diagnostics) noexcept;
   void cancel() noexcept override;
 
 private:
+  // diagnostics is borrowed only for this synchronous call.
+  std::optional<diagnostic_report_s> analyze_impl(
+    const diagnostic_batch_s & batch,
+    llm_attempt_diagnostics_s * diagnostics) noexcept;
+
   common::string256_t m_endpoint;
   common::string64_t m_model;
   common::string64_t m_api_key_environment;
   std::chrono::milliseconds m_request_timeout;
   std::size_t m_maximum_response_bytes;
-  common::fixed_string_c<4096U> m_diagnostic_memory;
+  std::size_t m_maximum_request_bytes;
   common::cancellable_curl_c m_curl;
 };
 

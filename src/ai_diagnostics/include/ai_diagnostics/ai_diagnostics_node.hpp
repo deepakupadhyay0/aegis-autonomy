@@ -2,6 +2,7 @@
 
 #include "ai_diagnostics/ai_diagnostics_config.hpp"
 #include "ai_diagnostics/diagnostic_types.hpp"
+#include "ai_diagnostics/incident_window.hpp"
 #include "ai_diagnostics/llm_client.hpp"
 #include "ai_diagnostics/log_reader.hpp"
 #include "ai_diagnostics/resource_monitor.hpp"
@@ -15,7 +16,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <deque>
 #include <memory>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -60,6 +63,9 @@ private:
   std::unique_ptr<log_reader_c> m_log_reader;
   std::unique_ptr<resource_monitor_c> m_resource_monitor;
   std::unique_ptr<llm_client_c> m_llm_client;
+  std::unique_ptr<incident_window_c> m_window_builder;
+  std::deque<diagnostic_batch_s> m_ready_windows;
+  std::optional<diagnostic_event_s> m_deferred_event;
   std::jthread m_shutdown_watcher;
   rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr
     m_diagnostic_subscription;

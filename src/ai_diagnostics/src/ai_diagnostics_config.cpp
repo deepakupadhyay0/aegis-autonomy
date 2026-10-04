@@ -4,8 +4,10 @@
 
 #include <autonomy_config/ai_diagnostics.hpp>
 
+#include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 
 namespace ai_diagnostics
@@ -71,6 +73,9 @@ template<std::size_t capacity_v>
 common::fixed_string_c<capacity_v> make_fixed_string(
   const std::string_view value)
 {
+  if (value.size() > capacity_v) {
+    throw std::invalid_argument("AI diagnostics configuration value is too long");
+  }
   common::fixed_string_c<capacity_v> result;
   result.assign(value);
   return result;
@@ -99,13 +104,23 @@ ai_diagnostics_options_s load_ai_diagnostics_options()
   options.max_records_per_batch = positive_uint32(
     config.get_max_records_per_batch(),
     "AI diagnostics maximum batch record count is invalid");
+  if (options.max_records_per_batch < 2U ||
+    options.max_records_per_batch > 256U)
+  {
+    throw std::invalid_argument(
+            "AI diagnostics maximum batch record count must be in [2, 256]");
+  }
   options.queue_capacity = positive_uint32(
     config.get_queue_capacity(),
     "AI diagnostics queue capacity is invalid");
+  if (options.queue_capacity > 4096U) {
+    throw std::invalid_argument(
+            "AI diagnostics queue capacity exceeds 4096");
+  }
 
   const common::int64_t maximum_context_bytes =
     config.get_maximum_context_bytes();
-  if (maximum_context_bytes <= 0 || maximum_context_bytes > 1048576) {
+  if (maximum_context_bytes < 1024 || maximum_context_bytes > 1048576) {
     throw std::invalid_argument(
             "AI diagnostics maximum context size is invalid");
   }
@@ -113,7 +128,8 @@ ai_diagnostics_options_s load_ai_diagnostics_options()
     maximum_context_bytes);
 
   options.cpu_threshold_percent = config.get_cpu_threshold_percent();
-  if (options.cpu_threshold_percent < 0.0 ||
+  if (!std::isfinite(options.cpu_threshold_percent) ||
+    options.cpu_threshold_percent < 0.0 ||
     options.cpu_threshold_percent > 100.0)
   {
     throw std::invalid_argument(
@@ -163,6 +179,13 @@ ai_diagnostics_options_s load_ai_diagnostics_options()
   {
     throw std::invalid_argument(
             "Enabled AI diagnostics requires an endpoint and model");
+  }
+  if (options.enabled &&
+    !options.endpoint.view().starts_with("http://") &&
+    !options.endpoint.view().starts_with("https://"))
+  {
+    throw std::invalid_argument(
+            "AI diagnostics endpoint must use HTTP or HTTPS");
   }
   return options;
 }

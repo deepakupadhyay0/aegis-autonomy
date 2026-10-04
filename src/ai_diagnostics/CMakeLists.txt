@@ -24,6 +24,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(${PROJECT_NAME} SHARED
   src/ai_diagnostics_config.cpp
   src/ai_diagnostics_node.cpp
+  src/incident_window.cpp
   src/llm_client.cpp
   src/llm_schema.cpp
   src/log_reader.cpp
@@ -87,6 +88,22 @@ if(BUILD_TESTING)
   target_link_libraries(test_llm_schema ${PROJECT_NAME})
   ament_add_gtest(test_log_reader test/test_log_reader.cpp)
   target_link_libraries(test_log_reader ${PROJECT_NAME})
+  ament_add_gtest(test_incident_window test/test_incident_window.cpp)
+  target_link_libraries(test_incident_window ${PROJECT_NAME})
+  ament_add_gtest(test_ai_diagnostics_node test/test_ai_diagnostics_node.cpp)
+  target_link_libraries(test_ai_diagnostics_node ${PROJECT_NAME})
+  ament_target_dependencies(test_ai_diagnostics_node
+    autonomy_msgs
+    base_core
+    diagnostic_msgs
+    logging
+    rclcpp
+  )
+  ament_add_gtest(test_local_model test/test_local_model.cpp TIMEOUT 360)
+  target_link_libraries(test_local_model ${PROJECT_NAME})
+  target_compile_definitions(test_local_model PRIVATE
+    AI_DIAGNOSTICS_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data"
+  )
 endif()
 
 ament_export_targets(

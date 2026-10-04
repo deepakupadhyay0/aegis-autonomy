@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <set>
 #include <stdexcept>
@@ -9,6 +10,7 @@
 #include <string_view>
 #include <system_error>
 #include <sys/stat.h>
+#include <utility>
 
 namespace ai_diagnostics
 {
@@ -17,6 +19,25 @@ namespace
 
 constexpr std::size_t TIMESTAMP_SIZE = 30U;
 constexpr std::string_view FIELD_SEPARATOR = ": ";
+
+bool is_measurement_name(const std::string_view name) noexcept
+{
+  if (name.empty() || name.size() > common::string64_t::capacity()) {
+    return false;
+  }
+  return std::all_of(
+    name.begin(), name.end(),
+    [](const char value) {
+      return (value >= 'a' && value <= 'z') ||
+             (value >= 'A' && value <= 'Z') ||
+             (value >= '0' && value <= '9') || value == '_';
+    });
+}
+
+bool is_measurement_separator(const char value) noexcept
+{
+  return value == ' ' || value == '\t' || value == ';' || value == ',';
+}
 
 struct level_marker_s
 {
@@ -110,6 +131,55 @@ bool parse_source_location(
 
 }  // namespace
 
+void extract_numeric_log_measurements(diagnostic_event_s & event)
+{
+  event.measurements.clear();
+  const std::string_view message = event.fault.view();
+  std::size_t position = 0U;
+  while (position < message.size()) {
+    while (position < message.size() &&
+      is_measurement_separator(message[position]))
+    {
+      ++position;
+    }
+    const std::size_t begin = position;
+    while (position < message.size() &&
+      !is_measurement_separator(message[position]))
+    {
+      ++position;
+    }
+    const std::string_view token = message.substr(begin, position - begin);
+    const std::size_t separator = token.find('=');
+    if (separator == std::string_view::npos) {
+      continue;
+    }
+    const std::string_view name = token.substr(0U, separator);
+    const std::string_view value = token.substr(separator + 1U);
+    if (!is_measurement_name(name) || value.empty() ||
+      value.size() > common::string64_t::capacity())
+    {
+      continue;
+    }
+    common::float64_t parsed_value = 0.0;
+    const std::from_chars_result result = std::from_chars(
+      value.data(), value.data() + value.size(), parsed_value);
+    if (result.ec != std::errc{} ||
+      result.ptr != value.data() + value.size() ||
+      !std::isfinite(parsed_value))
+    {
+      continue;
+    }
+    if (event.measurements.size() == MAX_DIAGNOSTIC_MEASUREMENTS) {
+      event.truncated = true;
+      continue;
+    }
+    diagnostic_measurement_s measurement;
+    measurement.name.assign(name);
+    measurement.value.assign(value);
+    event.measurements.push_back(std::move(measurement));
+  }
+}
+
 bool parse_log_line(
   const std::string_view node_name,
   const std::string_view evidence_id,
@@ -162,8 +232,10 @@ bool parse_log_line(
   {
     return false;
   }
-  parsed.message.assign(line.substr(
-      message_separator + FIELD_SEPARATOR.size()));
+  const std::string_view message = line.substr(
+    message_separator + FIELD_SEPARATOR.size());
+  parsed.message.assign(message);
+  parsed.truncated = message.size() > common::string256_t::capacity();
   parsed.evidence_id.assign(evidence_id);
   record = parsed;
   return true;
@@ -250,14 +322,14 @@ void log_reader_c::load_cursor()
   }
 }
 
-void log_reader_c::save_cursor(
+bool log_reader_c::save_cursor(
   const std::vector<log_file_s> & active_files) const
 {
   const std::filesystem::path temporary_path =
     m_cursor_path.string() + ".tmp";
   std::ofstream cursor(temporary_path, std::ios::trunc);
   if (!cursor) {
-    return;
+    return false;
   }
   for (const log_file_s & file : active_files) {
     const std::map<file_identity_s, common::uint64_t>::const_iterator position =
@@ -269,15 +341,17 @@ void log_reader_c::save_cursor(
   }
   cursor.close();
   if (!cursor) {
-    return;
+    std::error_code error;
+    std::filesystem::remove(temporary_path, error);
+    return false;
   }
   std::error_code error;
   std::filesystem::rename(temporary_path, m_cursor_path, error);
   if (error) {
-    std::filesystem::remove(m_cursor_path, error);
-    error.clear();
-    std::filesystem::rename(temporary_path, m_cursor_path, error);
+    std::filesystem::remove(temporary_path, error);
+    return false;
   }
+  return true;
 }
 
 std::vector<parsed_log_record_s> log_reader_c::read_next_batch()
@@ -333,12 +407,18 @@ std::vector<parsed_log_record_s> log_reader_c::read_next_batch()
             static_cast<std::streamoff>(line_start)));
       parsed_log_record_s record;
       if (!parse_log_line(node_name, evidence_id, line, record) ||
-        record.level < m_minimum_level)
+        (record.level < m_minimum_level &&
+        !record.message.view().starts_with("health=ok")))
       {
         offset = candidate_offset;
         continue;
       }
       if (line.size() > m_maximum_context_bytes - context_bytes) {
+        // An oversized line must not block every subsequent record forever.
+        if (context_bytes == 0U) {
+          offset = candidate_offset;
+          continue;
+        }
         break;
       }
       records.push_back(record);
@@ -356,8 +436,12 @@ std::vector<parsed_log_record_s> log_reader_c::read_next_batch()
       }
       return left.timestamp.view() < right.timestamp.view();
     });
-  this->save_cursor(files);
   return records;
+}
+
+bool log_reader_c::commit()
+{
+  return this->save_cursor(this->discover_log_files());
 }
 
 }  // namespace ai_diagnostics

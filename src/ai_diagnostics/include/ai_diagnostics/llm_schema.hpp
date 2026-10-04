@@ -13,6 +13,12 @@ namespace ai_diagnostics
 namespace llm
 {
 
+struct diagnostic_measurement_s
+{
+  std::string name;
+  std::string value;
+};
+
 struct diagnostic_context_s
 {
   std::string timestamp;
@@ -22,6 +28,9 @@ struct diagnostic_context_s
   common::uint32_t source_line{0U};
   std::string level;
   std::string fault;
+  std::vector<diagnostic_measurement_s> measurements;
+  bool healthy{false};
+  bool truncated{false};
 };
 
 struct chat_message_s
@@ -30,16 +39,10 @@ struct chat_message_s
   std::string content;
 };
 
-struct response_format_s
-{
-  std::string type;
-};
-
 struct chat_completion_request_s
 {
   std::string model;
   std::vector<chat_message_s> messages;
-  response_format_s response_format;
 };
 
 struct chat_completion_message_s
@@ -57,27 +60,15 @@ struct chat_completion_response_s
   std::vector<chat_completion_choice_s> choices;
 };
 
-struct diagnostic_analysis_s
-{
-  std::string diagnostic_memory;
-  std::string probable_cause;
-  std::string predicted_failure;
-  std::string recommended_action;
-  std::vector<std::string> evidence_ids;
-  common::float32_t confidence{0.0F};
-  bool insufficient_evidence{false};
-  bool potentially_recoverable{false};
-};
-
+AI_DIAGNOSTICS_PUBLIC void to_json(
+  nlohmann::json & json,
+  const diagnostic_measurement_s & value);
 AI_DIAGNOSTICS_PUBLIC void to_json(
   nlohmann::json & json,
   const diagnostic_context_s & value);
 AI_DIAGNOSTICS_PUBLIC void to_json(
   nlohmann::json & json,
   const chat_message_s & value);
-AI_DIAGNOSTICS_PUBLIC void to_json(
-  nlohmann::json & json,
-  const response_format_s & value);
 AI_DIAGNOSTICS_PUBLIC void to_json(
   nlohmann::json & json,
   const chat_completion_request_s & value);
@@ -91,9 +82,6 @@ AI_DIAGNOSTICS_PUBLIC void from_json(
 AI_DIAGNOSTICS_PUBLIC void from_json(
   const nlohmann::json & json,
   chat_completion_response_s & value);
-AI_DIAGNOSTICS_PUBLIC void from_json(
-  const nlohmann::json & json,
-  diagnostic_analysis_s & value);
 
 }  // namespace llm
 }  // namespace ai_diagnostics

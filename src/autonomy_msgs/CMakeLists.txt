@@ -11,10 +11,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
 
-file(GLOB INTERFACE_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-  "msg/*.msg"
-  "srv/*.srv"
-  "action/*.action"
+set(INTERFACE_FILES
+  msg/AiDiagnosticReport.msg
+  msg/PlaceDescriptor.msg
+  msg/PresenceEvent.msg
+  msg/WifiObservation.msg
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}

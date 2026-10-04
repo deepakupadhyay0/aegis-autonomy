@@ -1,6 +1,7 @@
 #include "ai_diagnostics/resource_monitor.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -57,7 +58,9 @@ linux_cpu_monitor_c::linux_cpu_monitor_c(
   m_previous_idle_time(0U),
   m_has_previous_sample(false)
 {
-  if (m_maximum_cpu_percent < 0.0 || m_maximum_cpu_percent > 100.0) {
+  if (!std::isfinite(m_maximum_cpu_percent) ||
+    m_maximum_cpu_percent < 0.0 || m_maximum_cpu_percent > 100.0)
+  {
     throw std::invalid_argument("CPU threshold is outside [0, 100]");
   }
   if (m_required_idle_samples == 0U) {
